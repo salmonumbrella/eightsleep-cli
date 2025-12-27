@@ -1,0 +1,77 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/spf13/viper"
+)
+
+// Config holds merged configuration.
+type Config struct {
+	Email        string   `mapstructure:"email"`
+	Password     string   `mapstructure:"password"`
+	UserID       string   `mapstructure:"user_id"`
+	ClientID     string   `mapstructure:"client_id"`
+	ClientSecret string   `mapstructure:"client_secret"`
+	Timezone     string   `mapstructure:"timezone"`
+	Output       string   `mapstructure:"output"`
+	Fields       []string `mapstructure:"fields"`
+	Verbose      bool     `mapstructure:"verbose"`
+}
+
+// Load initializes viper and unmarshals Config.
+func Load(configPath string, quiet bool) (Config, error) {
+	v := viper.New()
+
+	v.SetConfigType("yaml")
+	v.SetEnvPrefix("EIGHTSLEEP")
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+	v.AutomaticEnv()
+
+	if configPath != "" {
+		v.SetConfigFile(configPath)
+	} else {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return Config{}, fmt.Errorf("find home: %w", err)
+		}
+		v.AddConfigPath(filepath.Join(home, ".config", "eightsleep"))
+		v.SetConfigName("config")
+	}
+
+	// defaults
+	v.SetDefault("timezone", "local")
+	v.SetDefault("output", "table")
+
+	if err := v.ReadInConfig(); err == nil {
+		if !quiet {
+			fmt.Fprintf(os.Stderr, "Using config file: %s\n", v.ConfigFileUsed())
+		}
+	}
+
+	var cfg Config
+	if err := v.Unmarshal(&cfg); err != nil {
+		return Config{}, fmt.Errorf("decode config: %w", err)
+	}
+
+	return cfg, nil
+}
+
+// WarnInsecurePerms checks if config file is too permissive.
+func WarnInsecurePerms(path string) error {
+	if path == "" {
+		return nil
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil
+	}
+	mode := info.Mode().Perm()
+	if mode&0o077 != 0 {
+		return fmt.Errorf("config file %s permissions %o; suggest 600", path, mode)
+	}
+	return nil
+}

@@ -1,0 +1,48 @@
+version: 2
+
+project_name: eightsleep-cli
+
+builds:
+  - id: eightsleep
+    main: ./cmd/eightsleep
+    binary: eightsleep
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/salmonumbrella/eightsleep-cli/internal/cmd.Version={{.Version}}
+      - -X github.com/salmonumbrella/eightsleep-cli/internal/cmd.Commit={{.ShortCommit}}
+      - -X github.com/salmonumbrella/eightsleep-cli/internal/cmd.BuildDate={{.Date}}
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - Merge pull request
+      - Merge branch
