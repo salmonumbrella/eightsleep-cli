@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/salmonumbrella/eightsleep-cli/internal/config"
+	"github.com/salmonumbrella/eightsleep-cli/internal/secrets"
 	"github.com/salmonumbrella/eightsleep-cli/internal/tokencache"
 )
 
@@ -33,6 +34,7 @@ func init() {
 
 	rootCmd.PersistentFlags().String("config", "", "config file (default ~/.config/eightsleep-cli/config.yaml)")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose logging")
+	rootCmd.PersistentFlags().String("account", "", "account name from keyring (see: eightsleep auth list)")
 	rootCmd.PersistentFlags().String("email", "", "Eight Sleep account email")
 	rootCmd.PersistentFlags().String("password", "", "Eight Sleep account password")
 	rootCmd.PersistentFlags().String("client-id", "", "Eight Sleep client ID (optional; defaults to public app client)")
@@ -45,6 +47,7 @@ func init() {
 
 	viper.BindPFlag("config", rootCmd.PersistentFlags().Lookup("config"))
 	viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
+	viper.BindPFlag("account", rootCmd.PersistentFlags().Lookup("account"))
 	viper.BindPFlag("email", rootCmd.PersistentFlags().Lookup("email"))
 	viper.BindPFlag("password", rootCmd.PersistentFlags().Lookup("password"))
 	viper.BindPFlag("client_id", rootCmd.PersistentFlags().Lookup("client-id"))
@@ -55,6 +58,7 @@ func init() {
 	viper.BindPFlag("fields", rootCmd.PersistentFlags().Lookup("fields"))
 	viper.BindPFlag("config-quiet", rootCmd.PersistentFlags().Lookup("quiet"))
 
+	rootCmd.AddCommand(authCmd)
 	rootCmd.AddCommand(onCmd)
 	rootCmd.AddCommand(offCmd)
 	rootCmd.AddCommand(tempCmd)
@@ -76,7 +80,6 @@ func init() {
 	rootCmd.AddCommand(householdCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(whoamiCmd)
-	rootCmd.AddCommand(logoutCmd)
 	rootCmd.AddCommand(completionCmd)
 }
 
@@ -96,12 +99,22 @@ func initConfig() {
 	viper.SetDefault("user_id", cfg.UserID)
 	viper.SetDefault("client_id", cfg.ClientID)
 	viper.SetDefault("client_secret", cfg.ClientSecret)
-	viper.SetDefault("client_id", cfg.ClientID)
-	viper.SetDefault("client_secret", cfg.ClientSecret)
 	viper.SetDefault("timezone", cfg.Timezone)
 	viper.SetDefault("output", cfg.Output)
 	viper.SetDefault("fields", cfg.Fields)
 	viper.SetDefault("verbose", cfg.Verbose)
+
+	// Load credentials from keyring if account is specified
+	if account := viper.GetString("account"); account != "" {
+		store, err := secrets.OpenDefault()
+		if err == nil {
+			creds, err := store.Get(account)
+			if err == nil {
+				viper.Set("email", creds.Email)
+				viper.Set("password", creds.Password)
+			}
+		}
+	}
 
 	if err := config.WarnInsecurePerms(viper.ConfigFileUsed()); err != nil {
 		logger.Warn(err.Error())

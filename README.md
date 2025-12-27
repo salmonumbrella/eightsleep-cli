@@ -12,7 +12,8 @@ Control your Eight Sleep Pod from the command line.
 - **Metrics & insights** - analyze sleep trends, intervals, and aggregated data
 - **Power & temperature control** - turn pod on/off, set temperature levels
 - **Schedule daemon** - run automated temperature schedules from config file
-- **Secure authentication** - browser-based OAuth login with token caching
+- **Multiple accounts** - manage multiple Eight Sleep accounts with keychain storage
+- **Secure authentication** - browser-based or terminal login with token caching
 - **Sleep analytics** - view sleep metrics for individual days or date ranges
 - **Temperature modes** - control nap mode, hot-flash mode, and view events
 - **Temperature schedules** - manage cloud-based temperature schedules
@@ -36,19 +37,32 @@ go install github.com/salmonumbrella/eightsleep-cli/cmd/eightsleep@latest
 
 ### 1. Authenticate
 
+Choose one of two methods:
+
+**Browser:**
 ```bash
-eightsleep login
+eightsleep auth login
 ```
 
-Opens your browser for secure OAuth authentication.
-
-### 2. Check Pod Status
-
+**Terminal:**
 ```bash
-eightsleep status
+eightsleep auth add my-account
+# You'll be prompted securely for email and password
 ```
 
-### 3. Control Temperature
+### 2. Test Authentication
+
+```bash
+eightsleep auth test --account my-account
+```
+
+### 3. Check Pod Status
+
+```bash
+eightsleep status --account my-account
+```
+
+### 4. Control Temperature
 
 ```bash
 # Set temperature level (-100 to 100)
@@ -61,15 +75,31 @@ eightsleep temp 20C
 
 ## Configuration
 
+### Account Selection
+
+Specify the account using either a flag or environment variable:
+
+```bash
+# Via flag
+eightsleep status --account my-account
+
+# Via environment
+export EIGHTSLEEP_ACCOUNT=my-account
+eightsleep status
+```
+
 ### Priority
 
 Configuration sources are applied in this order (highest priority first):
 
 1. Command-line flags
 2. Environment variables (prefixed with `EIGHTSLEEP_`)
-3. Config file (`~/.config/eightsleep-cli/config.yaml`)
+3. Keychain credentials (via `--account`)
+4. Config file (`~/.config/eightsleep-cli/config.yaml`)
 
 ### Environment Variables
+
+- `EIGHTSLEEP_ACCOUNT` - Default account name to use
 
 - `EIGHTSLEEP_EMAIL` - Eight Sleep account email
 - `EIGHTSLEEP_PASSWORD` - Eight Sleep account password
@@ -103,17 +133,22 @@ chmod 600 ~/.config/eightsleep-cli/config.yaml
 
 ### Credential Storage
 
-- **Browser-based login** - uses OAuth flow via browser (recommended)
+Credentials are stored securely in your system's keychain:
+- **macOS**: Keychain Access (file-based fallback)
+- **Linux**: Secret Service (GNOME Keyring, KWallet) or file-based
+- **Windows**: Credential Manager or file-based
+
+Additional security features:
 - **Token caching** - tokens are cached locally to reduce API calls
 - **Config file permissions** - CLI warns if permissions are too permissive (>0600)
 - **Auto-resolution** - user ID and device ID are automatically resolved
 
 ### Best Practices
 
-- Use `eightsleep login` for secure browser-based authentication
-- Set `chmod 600` on config files to protect credentials
+- Use `eightsleep auth add` for secure credential storage in keychain
+- Set `chmod 600` on config files if using file-based credentials
 - Avoid passing `--password` on command line (visible in shell history)
-- Use environment variables or config file for credentials
+- Use `--account` flag or environment variable for multi-account setups
 
 ### API Limitations
 
@@ -129,8 +164,12 @@ Eight Sleep does not publish a stable public API. This CLI uses undocumented end
 ### Authentication
 
 ```bash
-eightsleep login                    # Authenticate via browser (recommended)
-eightsleep logout                   # Clear cached authentication token
+eightsleep auth login               # Authenticate via browser (recommended)
+eightsleep auth add <name>          # Add credentials manually (prompts securely)
+eightsleep auth list                # List configured accounts
+eightsleep auth remove <name>       # Remove account
+eightsleep auth test [--account <name>]  # Test credentials
+eightsleep auth logout              # Clear cached authentication token
 eightsleep whoami                   # Show configured user ID
 ```
 
@@ -370,6 +409,7 @@ eightsleep alarm list --output json | jq '.[] | select(.status == "ACTIVE")'
 
 All commands support these flags:
 
+- `--account <name>` - Account to use (overrides EIGHTSLEEP_ACCOUNT)
 - `--config <path>` - Config file path (default: `~/.config/eightsleep-cli/config.yaml`)
 - `--email <email>` - Eight Sleep account email
 - `--password <password>` - Eight Sleep account password
