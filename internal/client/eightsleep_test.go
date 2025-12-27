@@ -15,13 +15,13 @@ func mockServer(t *testing.T) (*httptest.Server, *Client) {
 
 	mux.HandleFunc("/users/me", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"user":{"userId":"uid-123","currentDevice":{"id":"dev-1"}}}`))
+		_, _ = w.Write([]byte(`{"user":{"userId":"uid-123","currentDevice":{"id":"dev-1"}}}`))
 	})
 
 	mux.HandleFunc("/users/uid-123/temperature", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"currentLevel":5,"currentState":{"type":"on"}}`))
+			_, _ = w.Write([]byte(`{"currentLevel":5,"currentState":{"type":"on"}}`))
 			return
 		}
 		if r.Method == http.MethodPut {
@@ -35,7 +35,7 @@ func mockServer(t *testing.T) (*httptest.Server, *Client) {
 		// first call rate limits, second succeeds
 		if r.Header.Get("X-Test-Retry") == "done" {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"ok":true}`))
+			_, _ = w.Write([]byte(`{"ok":true}`))
 			return
 		}
 		w.WriteHeader(http.StatusTooManyRequests)

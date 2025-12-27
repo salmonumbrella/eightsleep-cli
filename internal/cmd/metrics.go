@@ -78,10 +78,10 @@ var metricsInsightsCmd = &cobra.Command{Use: "insights", RunE: func(cmd *cobra.C
 func init() {
 	metricsTrendsCmd.Flags().String("from", "", "from date YYYY-MM-DD")
 	metricsTrendsCmd.Flags().String("to", "", "to date YYYY-MM-DD")
-	viper.BindPFlag("from", metricsTrendsCmd.Flags().Lookup("from"))
-	viper.BindPFlag("to", metricsTrendsCmd.Flags().Lookup("to"))
+	_ = viper.BindPFlag("from", metricsTrendsCmd.Flags().Lookup("from"))
+	_ = viper.BindPFlag("to", metricsTrendsCmd.Flags().Lookup("to"))
 	metricsIntervalsCmd.Flags().String("id", "", "session id")
-	viper.BindPFlag("id", metricsIntervalsCmd.Flags().Lookup("id"))
+	_ = viper.BindPFlag("id", metricsIntervalsCmd.Flags().Lookup("id"))
 
 	metricsCmd.AddCommand(metricsTrendsCmd, metricsIntervalsCmd, metricsSummaryCmd, metricsAggregateCmd, metricsInsightsCmd)
 }

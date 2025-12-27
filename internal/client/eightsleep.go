@@ -151,7 +151,7 @@ func (c *Client) authTokenEndpoint(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(resp.Body)
 		log.Debug("token auth failed", "status", resp.Status, "headers", resp.Header, "body", string(b))
@@ -204,7 +204,7 @@ func (c *Client) authLegacyLogin(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(resp.Body)
 		log.Debug("legacy login failed", "status", resp.Status, "headers", resp.Header, "body", string(b))
@@ -304,7 +304,7 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusTooManyRequests {
 		time.Sleep(2 * time.Second)
 		return c.do(ctx, method, path, query, body, out)

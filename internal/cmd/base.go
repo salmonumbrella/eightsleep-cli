@@ -66,10 +66,10 @@ var baseTestCmd = &cobra.Command{Use: "test", RunE: func(cmd *cobra.Command, arg
 func init() {
 	baseAngleCmd.Flags().Int("head", 0, "head angle")
 	baseAngleCmd.Flags().Int("foot", 0, "foot angle")
-	viper.BindPFlag("head", baseAngleCmd.Flags().Lookup("head"))
-	viper.BindPFlag("foot", baseAngleCmd.Flags().Lookup("foot"))
+	_ = viper.BindPFlag("head", baseAngleCmd.Flags().Lookup("head"))
+	_ = viper.BindPFlag("foot", baseAngleCmd.Flags().Lookup("foot"))
 	basePresetRunCmd.Flags().String("name", "", "preset name")
-	viper.BindPFlag("name", basePresetRunCmd.Flags().Lookup("name"))
+	_ = viper.BindPFlag("name", basePresetRunCmd.Flags().Lookup("name"))
 
 	baseCmd.AddCommand(baseInfoCmd, baseAngleCmd, basePresetsCmd, basePresetRunCmd, baseTestCmd)
 }

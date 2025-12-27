@@ -69,8 +69,8 @@ var sleepRangeCmd = &cobra.Command{
 func init() {
 	sleepRangeCmd.Flags().String("from", "", "start date YYYY-MM-DD")
 	sleepRangeCmd.Flags().String("to", "", "end date YYYY-MM-DD")
-	viper.BindPFlag("from", sleepRangeCmd.Flags().Lookup("from"))
-	viper.BindPFlag("to", sleepRangeCmd.Flags().Lookup("to"))
+	_ = viper.BindPFlag("from", sleepRangeCmd.Flags().Lookup("from"))
+	_ = viper.BindPFlag("to", sleepRangeCmd.Flags().Lookup("to"))
 	if sleepCmd != nil {
 		sleepCmd.AddCommand(sleepRangeCmd)
 	}

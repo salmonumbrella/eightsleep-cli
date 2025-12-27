@@ -57,6 +57,6 @@ var sleepDayCmd = &cobra.Command{
 
 func init() {
 	sleepCmd.PersistentFlags().String("date", "", "date YYYY-MM-DD (default today)")
-	viper.BindPFlag("date", sleepCmd.PersistentFlags().Lookup("date"))
+	_ = viper.BindPFlag("date", sleepCmd.PersistentFlags().Lookup("date"))
 	sleepCmd.AddCommand(sleepDayCmd)
 }

@@ -185,7 +185,10 @@ func ValidateAccountName(name string) error {
 		return fmt.Errorf("account name too long (max 64 characters)")
 	}
 	for _, r := range name {
-		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
+		isLetter := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+		isDigit := r >= '0' && r <= '9'
+		isAllowed := isLetter || isDigit || r == '-' || r == '_'
+		if !isAllowed {
 			return fmt.Errorf("account name can only contain letters, numbers, hyphens, and underscores")
 		}
 	}

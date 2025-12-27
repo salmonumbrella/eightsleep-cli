@@ -50,13 +50,13 @@ func Print(format Format, headers []string, rows []map[string]any) error {
 		return w.Error()
 	default:
 		w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-		fmt.Fprintln(w, strings.Join(headers, "\t"))
+		_, _ = fmt.Fprintln(w, strings.Join(headers, "\t"))
 		for _, row := range rows {
 			vals := make([]string, len(headers))
 			for i, h := range headers {
 				vals[i] = fmt.Sprint(row[h])
 			}
-			fmt.Fprintln(w, strings.Join(vals, "\t"))
+			_, _ = fmt.Fprintln(w, strings.Join(vals, "\t"))
 		}
 		return w.Flush()
 	}

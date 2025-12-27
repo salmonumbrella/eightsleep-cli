@@ -35,7 +35,10 @@ type LoginServer struct {
 func NewLoginServer() *LoginServer {
 	// Generate CSRF token
 	tokenBytes := make([]byte, 32)
-	rand.Read(tokenBytes)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		// Fall back to less random but still unique token
+		tokenBytes = []byte(fmt.Sprintf("%d", time.Now().UnixNano()))
+	}
 
 	return &LoginServer{
 		result:    make(chan LoginResult, 1),
@@ -70,22 +73,24 @@ func (s *LoginServer) Start(ctx context.Context) (*LoginResult, error) {
 
 	// Start server in background
 	go func() {
-		server.Serve(listener)
+		_ = server.Serve(listener)
 	}()
 
 	// Open browser
-	go openBrowser(baseURL)
+	go func() {
+		_ = openBrowser(baseURL)
+	}()
 
 	// Wait for result or context cancellation
 	select {
 	case result := <-s.result:
-		server.Shutdown(context.Background())
+		_ = server.Shutdown(context.Background())
 		return &result, nil
 	case <-ctx.Done():
-		server.Shutdown(context.Background())
+		_ = server.Shutdown(context.Background())
 		return nil, ctx.Err()
 	case <-s.shutdown:
-		server.Shutdown(context.Background())
+		_ = server.Shutdown(context.Background())
 		if s.pendingResult != nil {
 			return s.pendingResult, nil
 		}
@@ -111,7 +116,9 @@ func (s *LoginServer) handleSetup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	tmpl.Execute(w, data)
+	if err := tmpl.Execute(w, data); err != nil {
+		http.Error(w, "Template error", http.StatusInternalServerError)
+	}
 }
 
 // handleSubmit handles the login form submission
@@ -185,7 +192,9 @@ func (s *LoginServer) handleSuccess(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	tmpl.Execute(w, data)
+	if err := tmpl.Execute(w, data); err != nil {
+		http.Error(w, "Template error", http.StatusInternalServerError)
+	}
 }
 
 // handleComplete signals that login is done
@@ -201,7 +210,7 @@ func (s *LoginServer) handleComplete(w http.ResponseWriter, r *http.Request) {
 func writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	_ = json.NewEncoder(w).Encode(data)
 }
 
 // openBrowser opens the URL in the default browser
