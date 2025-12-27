@@ -37,6 +37,20 @@ checksum:
   name_template: "checksums.txt"
   algorithm: sha256
 
+brews:
+  - name: eightsleep
+    repository:
+      owner: salmonumbrella
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/salmonumbrella/eightsleep-cli"
+    description: "Control your Eight Sleep Pod from the terminal"
+    license: "MIT"
+    install: |
+      bin.install "eightsleep"
+    test: |
+      system "#{bin}/eightsleep", "--version"
+
 changelog:
   sort: asc
   filters:
