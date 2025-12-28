@@ -3,14 +3,29 @@ version: 2
 project_name: eightsleep-cli
 
 builds:
-  - id: eightsleep
+  - id: darwin
+    main: ./cmd/eightsleep
+    binary: eightsleep
+    env:
+      - CGO_ENABLED=1
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/salmonumbrella/eightsleep-cli/internal/cmd.Version={{.Version}}
+      - -X github.com/salmonumbrella/eightsleep-cli/internal/cmd.Commit={{.ShortCommit}}
+      - -X github.com/salmonumbrella/eightsleep-cli/internal/cmd.BuildDate={{.Date}}
+
+  - id: other
     main: ./cmd/eightsleep
     binary: eightsleep
     env:
       - CGO_ENABLED=0
     goos:
       - linux
-      - darwin
       - windows
     goarch:
       - amd64
@@ -46,3 +61,18 @@ changelog:
       - "^ci:"
       - Merge pull request
       - Merge branch
+
+brews:
+  - name: eightsleep-cli
+    repository:
+      owner: salmonumbrella
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/salmonumbrella/eightsleep-cli"
+    description: "CLI for Eight Sleep API"
+    license: "MIT"
+    install: |
+      bin.install "eightsleep"
+    test: |
+      system "#{bin}/eightsleep", "--help"
