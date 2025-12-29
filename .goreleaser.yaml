@@ -62,18 +62,3 @@ changelog:
       - Merge pull request
       - Merge branch
 
-brews:
-  - name: eightsleep-cli
-    skip_upload: true
-    repository:
-      owner: salmonumbrella
-      name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
-    homepage: "https://github.com/salmonumbrella/eightsleep-cli"
-    description: "CLI for Eight Sleep API"
-    license: "MIT"
-    install: |
-      bin.install "eightsleep"
-    test: |
-      system "#{bin}/eightsleep", "--help"
