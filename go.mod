@@ -1,6 +1,6 @@
 module github.com/salmonumbrella/eightsleep-cli
 
-go 1.24.2
+go 1.25.5
 
 require (
 	github.com/99designs/keyring v1.2.2
