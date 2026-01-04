@@ -10,7 +10,7 @@ import (
 	"github.com/salmonumbrella/eightsleep-cli/internal/output"
 )
 
-var metricsCmd = &cobra.Command{Use: "metrics", Short: "Sleep metrics and insights"}
+var metricsCmd = &cobra.Command{Use: "metrics", Short: "Sleep metrics (trends, intervals)"}
 
 var metricsTrendsCmd = &cobra.Command{Use: "trends", RunE: func(cmd *cobra.Command, args []string) error {
 	if err := requireAuthFields(); err != nil {
@@ -39,41 +39,6 @@ var metricsIntervalsCmd = &cobra.Command{Use: "intervals", RunE: func(cmd *cobra
 	return output.Print(output.Format(viper.GetString("output")), []string{"interval"}, []map[string]any{{"interval": out}})
 }}
 
-var metricsSummaryCmd = &cobra.Command{Use: "summary", RunE: func(cmd *cobra.Command, args []string) error {
-	if err := requireAuthFields(); err != nil {
-		return err
-	}
-	cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
-	var out any
-	if err := cl.Metrics().Summary(context.Background(), &out); err != nil {
-		return err
-	}
-	return output.Print(output.Format(viper.GetString("output")), []string{"summary"}, []map[string]any{{"summary": out}})
-}}
-
-var metricsAggregateCmd = &cobra.Command{Use: "aggregate", RunE: func(cmd *cobra.Command, args []string) error {
-	if err := requireAuthFields(); err != nil {
-		return err
-	}
-	cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
-	var out any
-	if err := cl.Metrics().Aggregate(context.Background(), &out); err != nil {
-		return err
-	}
-	return output.Print(output.Format(viper.GetString("output")), []string{"aggregate"}, []map[string]any{{"aggregate": out}})
-}}
-
-var metricsInsightsCmd = &cobra.Command{Use: "insights", RunE: func(cmd *cobra.Command, args []string) error {
-	if err := requireAuthFields(); err != nil {
-		return err
-	}
-	cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
-	var out any
-	if err := cl.Metrics().Insights(context.Background(), &out); err != nil {
-		return err
-	}
-	return output.Print(output.Format(viper.GetString("output")), []string{"insights"}, []map[string]any{{"insights": out}})
-}}
 
 func init() {
 	metricsTrendsCmd.Flags().String("from", "", "from date YYYY-MM-DD")
@@ -83,5 +48,5 @@ func init() {
 	metricsIntervalsCmd.Flags().String("id", "", "session id")
 	_ = viper.BindPFlag("id", metricsIntervalsCmd.Flags().Lookup("id"))
 
-	metricsCmd.AddCommand(metricsTrendsCmd, metricsIntervalsCmd, metricsSummaryCmd, metricsAggregateCmd, metricsInsightsCmd)
+	metricsCmd.AddCommand(metricsTrendsCmd, metricsIntervalsCmd)
 }
