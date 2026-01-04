@@ -40,7 +40,11 @@ var travelCreateTripCmd = &cobra.Command{Use: "create-trip", RunE: func(cmd *cob
 		body["endDate"] = v
 	}
 	if v := viper.GetString("timezone"); v != "" {
-		body["timezone"] = v
+		tz, err := resolveTimezone(v)
+		if err != nil {
+			return err
+		}
+		body["timezone"] = tz
 	}
 	if len(body) == 0 {
 		return fmt.Errorf("provide at least --destination or --start-date/--end-date")

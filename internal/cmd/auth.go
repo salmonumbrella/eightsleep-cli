@@ -29,6 +29,78 @@ func printJSON(v any) error {
 	return enc.Encode(v)
 }
 
+func promptYesNo(reader *bufio.Reader, prompt string, defaultYes bool) (bool, error) {
+	for {
+		fmt.Fprint(os.Stderr, prompt)
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return false, err
+		}
+		line = strings.ToLower(strings.TrimSpace(line))
+		if line == "" {
+			return defaultYes, nil
+		}
+		if line == "y" || line == "yes" {
+			return true, nil
+		}
+		if line == "n" || line == "no" {
+			return false, nil
+		}
+	}
+}
+
+func suggestAccountName(email string) string {
+	parts := strings.Split(strings.TrimSpace(email), "@")
+	if len(parts) == 0 {
+		return ""
+	}
+	local := strings.ToLower(strings.TrimSpace(parts[0]))
+	if local == "" {
+		return ""
+	}
+	var b strings.Builder
+	for _, r := range local {
+		isLetter := (r >= 'a' && r <= 'z')
+		isDigit := r >= '0' && r <= '9'
+		if isLetter || isDigit || r == '-' || r == '_' {
+			b.WriteRune(r)
+		} else {
+			b.WriteRune('-')
+		}
+	}
+	name := strings.Trim(b.String(), "-_")
+	if len(name) > 64 {
+		name = name[:64]
+	}
+	return name
+}
+
+func promptAccountName(reader *bufio.Reader, suggested string) (string, error) {
+	for {
+		if suggested != "" {
+			fmt.Fprintf(os.Stderr, "Account name [%s]: ", suggested)
+		} else {
+			fmt.Fprint(os.Stderr, "Account name: ")
+		}
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return "", err
+		}
+		name := strings.TrimSpace(line)
+		if name == "" {
+			name = suggested
+		}
+		if name == "" {
+			return "", nil
+		}
+		if err := secrets.ValidateAccountName(name); err != nil {
+			fmt.Fprintf(os.Stderr, "Invalid account name: %v\n", err)
+			continue
+		}
+		return name, nil
+	}
+}
+
 var authCmd = &cobra.Command{
 	Use:   "auth",
 	Short: "Authentication and account management",
@@ -75,6 +147,52 @@ Examples:
 		fmt.Printf("Successfully authenticated as %s\n", result.Email)
 		fmt.Printf("User ID: %s\n", result.UserID)
 		fmt.Println()
+
+		account, _ := cmd.Flags().GetString("account")
+		noStore, _ := cmd.Flags().GetBool("no-store")
+		if !noStore && result.Password != "" {
+			reader := bufio.NewReader(os.Stdin)
+			if account == "" {
+				save, err := promptYesNo(reader, "Save credentials to keyring? [Y/n]: ", true)
+				if err != nil {
+					return err
+				}
+				if save {
+					account, err = promptAccountName(reader, suggestAccountName(result.Email))
+					if err != nil {
+						return err
+					}
+				}
+			}
+			if account != "" {
+				if err := secrets.ValidateAccountName(account); err != nil {
+					return fmt.Errorf("invalid account name: %w", err)
+				}
+				store, err := openSecretsStore()
+				if err != nil {
+					return fmt.Errorf("failed to open keyring: %w", err)
+				}
+				if _, err := store.Get(account); err == nil {
+					overwrite, err := promptYesNo(reader, fmt.Sprintf("Account %q already exists. Overwrite? [y/N]: ", account), false)
+					if err != nil {
+						return err
+					}
+					if !overwrite {
+						fmt.Println("Skipped saving credentials")
+						goto done
+					}
+				}
+				if err := store.Set(account, secrets.Credentials{
+					Email:    result.Email,
+					Password: result.Password,
+				}); err != nil {
+					return fmt.Errorf("failed to store credentials: %w", err)
+				}
+				fmt.Printf("Saved account: %s\n", account)
+			}
+		}
+
+	done:
 		fmt.Println("You can now use eightsleep commands. Try: eightsleep status")
 
 		return nil
@@ -289,6 +407,8 @@ var authLogoutCmd = &cobra.Command{
 }
 
 func init() {
+	authLoginCmd.Flags().String("account", "", "Account name to store credentials under")
+	authLoginCmd.Flags().Bool("no-store", false, "Do not store credentials in keyring")
 	authAddCmd.Flags().String("email", "", "Eight Sleep account email")
 	authAddCmd.Flags().String("password", "", "Eight Sleep account password (omit to prompt securely)")
 

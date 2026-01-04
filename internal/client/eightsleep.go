@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -17,8 +18,9 @@ import (
 )
 
 const (
-	defaultBaseURL = "https://client-api.8slp.net/v1"
-	authURL        = "https://auth-api.8slp.net/v1/tokens"
+	defaultBaseURL    = "https://client-api.8slp.net/v1"
+	defaultAppBaseURL = "https://app-api.8slp.net"
+	authURL           = "https://auth-api.8slp.net/v1/tokens"
 	// Extracted from the official Eight Sleep Android app v7.39.17 (public client creds)
 	defaultClientID     = "0894c7f33bb94800a03f1f4df13a4f38"
 	defaultClientSecret = "f0954a3ed5763ba3d06834c73731a32f15f168f47d4f164751275def86db0c76"
@@ -33,10 +35,11 @@ type Client struct {
 	ClientSecret string
 	DeviceID     string
 
-	HTTP     *http.Client
-	BaseURL  string
-	token    string
-	tokenExp time.Time
+	HTTP       *http.Client
+	BaseURL    string
+	AppBaseURL string
+	token      string
+	tokenExp   time.Time
 }
 
 // New creates a Client.
@@ -62,6 +65,7 @@ func New(email, password, userID, clientID, clientSecret string) *Client {
 		ClientSecret: clientSecret,
 		HTTP:         &http.Client{Timeout: 20 * time.Second, Transport: tr},
 		BaseURL:      defaultBaseURL,
+		AppBaseURL:   defaultAppBaseURL,
 	}
 }
 
@@ -274,6 +278,14 @@ func (c *Client) requireUser(ctx context.Context) error {
 }
 
 func (c *Client) do(ctx context.Context, method, path string, query url.Values, body any, out any) error {
+	return c.doWithBase(ctx, c.BaseURL, method, path, query, body, out)
+}
+
+func (c *Client) doApp(ctx context.Context, method, path string, query url.Values, body any, out any) error {
+	return c.doWithBase(ctx, c.AppBaseURL, method, path, query, body, out)
+}
+
+func (c *Client) doWithBase(ctx context.Context, baseURL, method, path string, query url.Values, body any, out any) error {
 	if err := c.ensureToken(ctx); err != nil {
 		return err
 	}
@@ -285,7 +297,7 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 		}
 		rdr = bytes.NewReader(b)
 	}
-	u := c.BaseURL + path
+	u := strings.TrimSuffix(baseURL, "/") + path
 	if len(query) > 0 {
 		u += "?" + query.Encode()
 	}
@@ -307,7 +319,7 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusTooManyRequests {
 		time.Sleep(2 * time.Second)
-		return c.do(ctx, method, path, query, body, out)
+		return c.doWithBase(ctx, baseURL, method, path, query, body, out)
 	}
 	if resp.StatusCode == http.StatusUnauthorized {
 		b, _ := io.ReadAll(resp.Body)
@@ -317,7 +329,7 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 		if err := c.ensureToken(ctx); err != nil {
 			return err
 		}
-		return c.do(ctx, method, path, query, body, out)
+		return c.doWithBase(ctx, baseURL, method, path, query, body, out)
 	}
 	if resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(resp.Body)

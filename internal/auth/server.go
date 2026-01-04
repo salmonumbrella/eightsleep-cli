@@ -18,9 +18,10 @@ import (
 
 // LoginResult contains the result of a browser-based login
 type LoginResult struct {
-	Email  string
-	UserID string
-	Error  error
+	Email    string
+	Password string
+	UserID   string
+	Error    error
 }
 
 // LoginServer handles the browser-based authentication flow
@@ -168,8 +169,9 @@ func (s *LoginServer) handleSubmit(w http.ResponseWriter, r *http.Request) {
 
 	// Store pending result
 	s.pendingResult = &LoginResult{
-		Email:  req.Email,
-		UserID: c.UserID,
+		Email:    req.Email,
+		Password: req.Password,
+		UserID:   c.UserID,
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

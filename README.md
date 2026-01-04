@@ -41,7 +41,7 @@ Choose one of two methods:
 
 **Browser:**
 ```bash
-eightsleep auth login
+eightsleep auth login --account my-account
 ```
 
 **Terminal:**
@@ -197,12 +197,13 @@ eightsleep sleep range --from 2024-12-01 --to 2024-12-15
 
 ```bash
 eightsleep alarm list                         # List all alarms
-eightsleep alarm create --time 07:00 --days mon,wed,fri
-eightsleep alarm update <alarmId> --time 07:30
-eightsleep alarm delete <alarmId>
-eightsleep alarm snooze <alarmId>
+eightsleep alarm one-off --time 07:00
+eightsleep alarm create --time 07:00          # Deprecated alias for one-off
+eightsleep alarm update <alarmId> --time 07:30 --routine <routineId>
+eightsleep alarm delete <alarmId> --routine <routineId>
+eightsleep alarm snooze <alarmId> --minutes 9
 eightsleep alarm dismiss <alarmId>
-eightsleep alarm dismiss-all
+eightsleep alarm dismiss-all                   # Dismiss next active alarm
 eightsleep alarm vibration-test
 ```
 
@@ -334,9 +335,9 @@ Human-readable tables with aligned columns:
 
 ```bash
 $ eightsleep alarm list
-ID            STATUS    TIME     DAYS
-alarm_123     ACTIVE    07:00    Mon, Wed, Fri
-alarm_456     INACTIVE  08:30    Tue, Thu
+ROUTINE_ID   ROUTINE_NAME  ID         TIME   ENABLED  DAYS       VIBRATION
+routine_1    Weekdays      alarm_123  07:00  true     mon,wed,fri true
+routine_2    Weekends      alarm_456  08:30  false    sat,sun     false
 ```
 
 ### JSON
@@ -372,7 +373,7 @@ Data goes to stdout, errors and progress to stderr for clean piping.
 
 ```bash
 # Create morning alarm with gradual warming
-eightsleep alarm create --time 06:30 --days mon,tue,wed,thu,fri
+eightsleep alarm one-off --time 06:30
 eightsleep schedule create --name "Morning Warmup" --time 06:00 --level 50
 ```
 
@@ -401,8 +402,8 @@ Use `--output json` for scripting and pipeline integration:
 # Get current temperature as JSON
 eightsleep status --output json | jq '.temperature'
 
-# List alarms and filter by status
-eightsleep alarm list --output json | jq '.[] | select(.status == "ACTIVE")'
+# List alarms and filter by enabled alarms
+eightsleep alarm list --output json | jq '.[] | select(.enabled == true)'
 ```
 
 ## Global Flags

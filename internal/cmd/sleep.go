@@ -28,9 +28,9 @@ var sleepDayCmd = &cobra.Command{
 		if date == "" {
 			date = time.Now().Format("2006-01-02")
 		}
-		tz := viper.GetString("timezone")
-		if tz == "local" {
-			tz = time.Local.String()
+		tz, err := resolveTimezone(viper.GetString("timezone"))
+		if err != nil {
+			return err
 		}
 		cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
 		day, err := cl.GetSleepDay(context.Background(), date, tz)
