@@ -19,8 +19,8 @@ var sleepRangeCmd = &cobra.Command{
 		if err := requireAuthFields(); err != nil {
 			return err
 		}
-		from := viper.GetString("from")
-		to := viper.GetString("to")
+		from, _ := cmd.Flags().GetString("from")
+		to, _ := cmd.Flags().GetString("to")
 		if from == "" || to == "" {
 			return fmt.Errorf("--from and --to are required")
 		}
@@ -69,8 +69,6 @@ var sleepRangeCmd = &cobra.Command{
 func init() {
 	sleepRangeCmd.Flags().String("from", "", "start date YYYY-MM-DD")
 	sleepRangeCmd.Flags().String("to", "", "end date YYYY-MM-DD")
-	_ = viper.BindPFlag("from", sleepRangeCmd.Flags().Lookup("from"))
-	_ = viper.BindPFlag("to", sleepRangeCmd.Flags().Lookup("to"))
 	if sleepCmd != nil {
 		sleepCmd.AddCommand(sleepRangeCmd)
 	}

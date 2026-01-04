@@ -35,25 +35,9 @@ func init() {
 			cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
 			return cl.Device().Peripherals(ctx)
 		}),
-		deviceSimple("owner", func(ctx context.Context) (any, error) {
-			cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
-			return cl.Device().Owner(ctx)
-		}),
-		deviceSimple("warranty", func(ctx context.Context) (any, error) {
-			cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
-			return cl.Device().Warranty(ctx)
-		}),
 		deviceSimple("online", func(ctx context.Context) (any, error) {
 			cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
 			return cl.Device().Online(ctx)
-		}),
-		deviceSimple("priming-tasks", func(ctx context.Context) (any, error) {
-			cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
-			return cl.Device().PrimingTasks(ctx)
-		}),
-		deviceSimple("priming-schedule", func(ctx context.Context) (any, error) {
-			cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
-			return cl.Device().PrimingSchedule(ctx)
 		}),
 	)
 }

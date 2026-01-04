@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -50,31 +49,6 @@ func TestValidAlarmTime(t *testing.T) {
 		t.Run(tt.input, func(t *testing.T) {
 			if got := validAlarmTime(tt.input); got != tt.want {
 				t.Errorf("validAlarmTime(%q) = %v, want %v", tt.input, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestSuggestAccountName(t *testing.T) {
-	tests := []struct {
-		email string
-		want  string
-	}{
-		{"user@example.com", "user"},
-		{"John.Doe@company.org", "john-doe"},
-		{"first_last@domain.com", "first_last"},
-		{"test+tag@mail.com", "test-tag"},
-		{"UPPER@case.com", "upper"},
-		{"", ""},
-		{"@nolocal.com", ""},
-		{"   spaces@trim.com   ", "spaces"},
-		// Test 64-char truncation
-		{strings.Repeat("a", 100) + "@example.com", strings.Repeat("a", 64)},
-	}
-	for _, tt := range tests {
-		t.Run(tt.email, func(t *testing.T) {
-			if got := suggestAccountName(tt.email); got != tt.want {
-				t.Errorf("suggestAccountName(%q) = %q, want %q", tt.email, got, tt.want)
 			}
 		})
 	}
