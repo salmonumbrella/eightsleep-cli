@@ -20,6 +20,8 @@ type Store interface {
 	Get(name string) (Credentials, error)
 	Delete(name string) error
 	List() ([]Credentials, error)
+	SetPrimary(name string) error
+	GetPrimary() (string, error)
 }
 
 type KeyringStore struct {
@@ -154,6 +156,31 @@ func (s *KeyringStore) List() ([]Credentials, error) {
 		out = append(out, creds)
 	}
 	return out, nil
+}
+
+const primaryKey = "primary:account"
+
+func (s *KeyringStore) SetPrimary(name string) error {
+	name = normalize(name)
+	if name == "" {
+		return fmt.Errorf("missing account name")
+	}
+	// Verify account exists
+	if _, err := s.Get(name); err != nil {
+		return fmt.Errorf("account %q not found", name)
+	}
+	return s.ring.Set(keyring.Item{
+		Key:  primaryKey,
+		Data: []byte(name),
+	})
+}
+
+func (s *KeyringStore) GetPrimary() (string, error) {
+	item, err := s.ring.Get(primaryKey)
+	if err != nil {
+		return "", err
+	}
+	return string(item.Data), nil
 }
 
 func ParseCredentialKey(k string) (name string, ok bool) {

@@ -39,6 +39,138 @@ const setupTemplate = `<!DOCTYPE html>
             display: none !important;
         }
 
+        /* Account management styles */
+        .accounts-section {
+            margin-bottom: 24px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .account-count {
+            font-size: 11px;
+            color: var(--text-muted);
+            background: var(--bg-secondary);
+            padding: 2px 8px;
+            border-radius: 100px;
+        }
+
+        .accounts-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .account-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            transition: border-color 0.15s ease;
+        }
+
+        .account-card:hover {
+            border-color: #cccccc;
+        }
+
+        .account-card.primary {
+            border-color: var(--success);
+            background: var(--success-bg);
+        }
+
+        .account-avatar {
+            width: 32px;
+            height: 32px;
+            background: var(--accent);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+
+        .account-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .account-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .account-email {
+            font-size: 12px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .account-actions {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .primary-badge {
+            font-size: 11px;
+            font-weight: 500;
+            color: #166534;
+            background: transparent;
+            padding: 4px 8px;
+            border-radius: 100px;
+        }
+
+        .account-btn {
+            padding: 4px 8px;
+            font-size: 11px;
+            font-family: inherit;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            opacity: 0;
+        }
+
+        .account-card:hover .account-btn {
+            opacity: 1;
+        }
+
+        .account-btn:hover {
+            background: var(--bg);
+            border-color: #cccccc;
+            color: var(--text-primary);
+        }
+
+        .account-btn.remove:hover {
+            color: var(--error);
+            border-color: var(--error);
+        }
+
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg);
@@ -373,50 +505,77 @@ const setupTemplate = `<!DOCTYPE html>
             <h2 class="card-title">Connect Your Account</h2>
             <p class="card-description">Sign in with your Eight Sleep credentials</p>
 
-            <div class="info-notice">
-                Use your <strong>Eight Sleep app credentials</strong>. Your credentials are stored securely in your system keychain.
+            <!-- Existing accounts section -->
+            <div id="accountsSection" class="accounts-section hidden">
+                <div class="section-header">
+                    <span class="section-title">Connected Accounts</span>
+                    <span id="accountCount" class="account-count">0</span>
+                </div>
+                <div id="accountsList" class="accounts-list"></div>
             </div>
 
-            <form id="authForm">
-                <div class="form-group">
-                    <label class="form-label" for="email">Email</label>
-                    <input
-                        type="email"
-                        id="email"
-                        name="email"
-                        class="form-input"
-                        placeholder="you@example.com"
-                        required
-                        autocomplete="email"
-                    >
+            <div id="addAccountSection">
+                <div class="info-notice">
+                    Use your <strong>Eight Sleep app credentials</strong>. Your credentials are stored securely in your system keychain.
                 </div>
 
-                <div class="form-group">
-                    <label class="form-label" for="password">Password</label>
-                    <input
-                        type="password"
-                        id="password"
-                        name="password"
-                        class="form-input"
-                        placeholder="Your password"
-                        required
-                        autocomplete="current-password"
-                    >
-                    <p class="form-hint">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                        </svg>
-                        Stored in your system keychain
-                    </p>
-                </div>
+                <form id="authForm">
+                    <div class="form-group">
+                        <label class="form-label" for="name">Account Name</label>
+                        <input
+                            type="text"
+                            id="name"
+                            name="name"
+                            class="form-input"
+                            placeholder="e.g. home, work, partner"
+                            required
+                            autocomplete="off"
+                        >
+                        <p class="form-hint">
+                            A friendly name to identify this account
+                        </p>
+                    </div>
 
-                <div id="status" class="status"></div>
+                    <div class="form-group">
+                        <label class="form-label" for="email">Email</label>
+                        <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            class="form-input"
+                            placeholder="you@example.com"
+                            required
+                            autocomplete="email"
+                        >
+                    </div>
 
-                <button type="submit" id="submitBtn" class="btn btn-primary">
-                    Sign In
-                </button>
-            </form>
+                    <div class="form-group">
+                        <label class="form-label" for="password">Password</label>
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            class="form-input"
+                            placeholder="Your password"
+                            required
+                            autocomplete="current-password"
+                        >
+                        <p class="form-hint">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                            Stored in your system keychain
+                        </p>
+                    </div>
+
+                    <div id="status" class="status"></div>
+
+                    <button type="submit" id="submitBtn" class="btn btn-primary">
+                        Add Account
+                    </button>
+                </form>
+            </div>
         </div>
 
         <footer>
@@ -447,10 +606,83 @@ const setupTemplate = `<!DOCTYPE html>
     <script>
         const csrfToken = '{{.CSRFToken}}';
         const form = document.getElementById('authForm');
+        const nameInput = document.getElementById('name');
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
         const submitBtn = document.getElementById('submitBtn');
         const status = document.getElementById('status');
+        const accountsSection = document.getElementById('accountsSection');
+        const accountsList = document.getElementById('accountsList');
+        const accountCount = document.getElementById('accountCount');
+
+        let accounts = [];
+        let primaryAccount = '';
+
+        async function loadAccounts() {
+            try {
+                const response = await fetch('/accounts');
+                const data = await response.json();
+                accounts = data.accounts || [];
+                primaryAccount = data.primary || '';
+                renderAccounts();
+            } catch (err) {
+                accounts = [];
+                renderAccounts();
+            }
+        }
+
+        function renderAccounts() {
+            accountCount.textContent = accounts.length;
+            if (accounts.length === 0) {
+                accountsSection.classList.add('hidden');
+            } else {
+                accountsSection.classList.remove('hidden');
+                accountsList.innerHTML = accounts.map(acc => {
+                    const isPrimary = acc.name === primaryAccount;
+                    const initial = acc.name.charAt(0).toUpperCase();
+                    return '<div class="account-card ' + (isPrimary ? 'primary' : '') + '">' +
+                        '<div class="account-avatar">' + initial + '</div>' +
+                        '<div class="account-info">' +
+                            '<div class="account-name">' + acc.name + '</div>' +
+                            '<div class="account-email">' + acc.email + '</div>' +
+                        '</div>' +
+                        '<div class="account-actions">' +
+                            (isPrimary ? '<span class="primary-badge">Primary</span>' : '<button class="account-btn" onclick="setPrimary(\'' + acc.name + '\')">Set Primary</button>') +
+                            '<button class="account-btn remove" onclick="removeAccount(\'' + acc.name + '\')">Remove</button>' +
+                        '</div>' +
+                    '</div>';
+                }).join('');
+            }
+        }
+
+        async function setPrimary(name) {
+            try {
+                const response = await fetch('/set-primary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+                    body: JSON.stringify({ name })
+                });
+                const data = await response.json();
+                if (data.success) await loadAccounts();
+            } catch (err) {
+                console.error('Failed to set primary:', err);
+            }
+        }
+
+        async function removeAccount(name) {
+            if (!confirm('Remove account "' + name + '"?')) return;
+            try {
+                const response = await fetch('/remove-account', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+                    body: JSON.stringify({ name })
+                });
+                const data = await response.json();
+                if (data.success) await loadAccounts();
+            } catch (err) {
+                console.error('Failed to remove account:', err);
+            }
+        }
 
         function showStatus(message, type) {
             const icons = {
@@ -469,21 +701,22 @@ const setupTemplate = `<!DOCTYPE html>
         function setLoading(loading) {
             if (loading) {
                 submitBtn.disabled = true;
-                submitBtn.innerHTML = '<span class="spinner"></span> Signing in...';
+                submitBtn.innerHTML = '<span class="spinner"></span> Adding account...';
             } else {
                 submitBtn.disabled = false;
-                submitBtn.innerHTML = 'Sign In';
+                submitBtn.innerHTML = 'Add Account';
             }
         }
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
+            const name = nameInput.value.trim();
             const email = emailInput.value.trim();
             const password = passwordInput.value;
 
-            if (!email || !password) {
-                showStatus('Please enter both email and password', 'error');
+            if (!name || !email || !password) {
+                showStatus('Please fill in all fields', 'error');
                 return;
             }
 
@@ -497,15 +730,15 @@ const setupTemplate = `<!DOCTYPE html>
                         'Content-Type': 'application/json',
                         'X-CSRF-Token': csrfToken
                     },
-                    body: JSON.stringify({ email, password })
+                    body: JSON.stringify({ name, email, password })
                 });
 
                 const data = await response.json();
 
                 if (data.success) {
-                    showStatus('Connected! Redirecting...', 'success');
+                    showStatus('Account added! Redirecting...', 'success');
                     setTimeout(() => {
-                        window.location.href = '/success?email=' + encodeURIComponent(email);
+                        window.location.href = '/success?email=' + encodeURIComponent(email) + '&name=' + encodeURIComponent(name);
                     }, 800);
                 } else {
                     showStatus(data.error || 'Authentication failed', 'error');
@@ -517,7 +750,8 @@ const setupTemplate = `<!DOCTYPE html>
             }
         });
 
-        emailInput.focus();
+        loadAccounts();
+        nameInput.focus();
     </script>
 </body>
 </html>`
@@ -829,12 +1063,10 @@ const successTemplate = `<!DOCTYPE html>
         <h1>You're Connected</h1>
         <p class="subtitle">Eight Sleep CLI is ready to control your Pod</p>
 
-        {{if .UserEmail}}
         <div class="user-badge">
             <span class="dot"></span>
             <span>{{.UserEmail}}</span>
         </div>
-        {{end}}
 
         <div class="terminal">
             <div class="terminal-bar">

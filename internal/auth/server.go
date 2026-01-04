@@ -11,14 +11,17 @@ import (
 	"net/http"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/salmonumbrella/eightsleep-cli/internal/client"
+	"github.com/salmonumbrella/eightsleep-cli/internal/secrets"
 )
 
 // LoginResult contains the result of a browser-based login
 type LoginResult struct {
-	Email string
+	AccountName string
+	Email       string
 	// Password is stored temporarily to enable keyring storage in cmd/auth.go.
 	// Once stored in keyring via secrets.Store.Set(), this field is no longer accessed.
 	// The password is needed because Eight Sleep uses password-grant OAuth and tokens expire,
@@ -34,10 +37,11 @@ type LoginServer struct {
 	shutdown      chan struct{}
 	pendingResult *LoginResult
 	csrfToken     string
+	store         secrets.Store
 }
 
 // NewLoginServer creates a new login server
-func NewLoginServer() *LoginServer {
+func NewLoginServer(store secrets.Store) *LoginServer {
 	// Generate CSRF token
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
@@ -49,6 +53,7 @@ func NewLoginServer() *LoginServer {
 		result:    make(chan LoginResult, 1),
 		shutdown:  make(chan struct{}),
 		csrfToken: hex.EncodeToString(tokenBytes),
+		store:     store,
 	}
 }
 
@@ -69,6 +74,9 @@ func (s *LoginServer) Start(ctx context.Context) (*LoginResult, error) {
 	mux.HandleFunc("/submit", s.handleSubmit)
 	mux.HandleFunc("/success", s.handleSuccess)
 	mux.HandleFunc("/complete", s.handleComplete)
+	mux.HandleFunc("/accounts", s.handleListAccounts)
+	mux.HandleFunc("/set-primary", s.handleSetPrimary)
+	mux.HandleFunc("/remove-account", s.handleRemoveAccount)
 
 	server := &http.Server{
 		Handler:      mux,
@@ -140,6 +148,7 @@ func (s *LoginServer) handleSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
+		Name     string `json:"name"`
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
@@ -148,6 +157,23 @@ func (s *LoginServer) handleSubmit(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]any{
 			"success": false,
 			"error":   "Invalid request body",
+		})
+		return
+	}
+
+	// Validate account name
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"success": false,
+			"error":   "Account name is required",
+		})
+		return
+	}
+	if err := secrets.ValidateAccountName(req.Name); err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"success": false,
+			"error":   err.Error(),
 		})
 		return
 	}
@@ -171,17 +197,41 @@ func (s *LoginServer) handleSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Store credentials directly to keyring
+	if s.store != nil {
+		creds := secrets.Credentials{
+			Name:     req.Name,
+			Email:    req.Email,
+			Password: req.Password,
+		}
+		if err := s.store.Set(req.Name, creds); err != nil {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"success": false,
+				"error":   fmt.Sprintf("Failed to store credentials: %v", err),
+			})
+			return
+		}
+
+		// Set as primary if it's the first account
+		accounts, _ := s.store.List()
+		if len(accounts) == 1 {
+			_ = s.store.SetPrimary(req.Name)
+		}
+	}
+
 	// Store pending result
 	s.pendingResult = &LoginResult{
-		Email:    req.Email,
-		Password: req.Password,
-		UserID:   c.UserID,
+		AccountName: req.Name,
+		Email:       req.Email,
+		Password:    req.Password,
+		UserID:      c.UserID,
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"success": true,
-		"email":   req.Email,
-		"user_id": c.UserID,
+		"success":      true,
+		"account_name": req.Name,
+		"email":        req.Email,
+		"user_id":      c.UserID,
 	})
 }
 
@@ -210,6 +260,146 @@ func (s *LoginServer) handleComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	close(s.shutdown)
 	writeJSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+// handleListAccounts returns the list of stored accounts
+func (s *LoginServer) handleListAccounts(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if s.store == nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"accounts": []any{},
+			"primary":  "",
+		})
+		return
+	}
+
+	accounts, err := s.store.List()
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"accounts": []any{},
+			"primary":  "",
+		})
+		return
+	}
+
+	primary, _ := s.store.GetPrimary()
+
+	accountList := make([]map[string]any, 0, len(accounts))
+	for _, acc := range accounts {
+		accountList = append(accountList, map[string]any{
+			"name":       acc.Name,
+			"email":      acc.Email,
+			"created_at": acc.CreatedAt.Format("2006-01-02"),
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"accounts": accountList,
+		"primary":  primary,
+	})
+}
+
+// handleSetPrimary sets an account as the primary account
+func (s *LoginServer) handleSetPrimary(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Verify CSRF token
+	if r.Header.Get("X-CSRF-Token") != s.csrfToken {
+		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
+		return
+	}
+
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"success": false,
+			"error":   "Invalid request body",
+		})
+		return
+	}
+
+	if s.store == nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"success": false,
+			"error":   "Store not available",
+		})
+		return
+	}
+
+	if err := s.store.SetPrimary(req.Name); err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true,
+	})
+}
+
+// handleRemoveAccount removes an account from the keyring
+func (s *LoginServer) handleRemoveAccount(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Verify CSRF token
+	if r.Header.Get("X-CSRF-Token") != s.csrfToken {
+		http.Error(w, "Invalid CSRF token", http.StatusForbidden)
+		return
+	}
+
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"success": false,
+			"error":   "Invalid request body",
+		})
+		return
+	}
+
+	if s.store == nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"success": false,
+			"error":   "Store not available",
+		})
+		return
+	}
+
+	if err := s.store.Delete(req.Name); err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// If we deleted the primary account, clear it or set a new one
+	primary, _ := s.store.GetPrimary()
+	if primary == req.Name {
+		accounts, _ := s.store.List()
+		if len(accounts) > 0 {
+			_ = s.store.SetPrimary(accounts[0].Name)
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"success": true,
+	})
 }
 
 // writeJSON writes a JSON response
