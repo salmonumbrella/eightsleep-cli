@@ -157,6 +157,8 @@ func init() {
 	alarmUpdateCmd.Flags().Bool("no-vibration", false, "Disable vibration")
 	alarmUpdateCmd.Flags().String("routine", "", "Routine id (optional)")
 	alarmDeleteCmd.Flags().String("routine", "", "Routine id (optional)")
+	// 9 minutes is the industry-standard snooze duration, dating back to the 1956 GE Snooz-Alarm.
+	// Most alarm clocks and phones (including iPhone) use this default, and Eight Sleep likely follows suit.
 	alarmSnoozeCmd.Flags().Int("minutes", 9, "Snooze minutes")
 	_ = viper.BindPFlag("time", alarmUpdateCmd.Flags().Lookup("time"))
 	_ = viper.BindPFlag("days", alarmUpdateCmd.Flags().Lookup("days"))
