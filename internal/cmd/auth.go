@@ -172,6 +172,7 @@ Examples:
 				if err != nil {
 					return fmt.Errorf("failed to open keyring: %w", err)
 				}
+				shouldSave := true
 				if _, err := store.Get(account); err == nil {
 					overwrite, err := promptYesNo(reader, fmt.Sprintf("Account %q already exists. Overwrite? [y/N]: ", account), false)
 					if err != nil {
@@ -179,20 +180,21 @@ Examples:
 					}
 					if !overwrite {
 						fmt.Println("Skipped saving credentials")
-						goto done
+						shouldSave = false
 					}
 				}
-				if err := store.Set(account, secrets.Credentials{
-					Email:    result.Email,
-					Password: result.Password,
-				}); err != nil {
-					return fmt.Errorf("failed to store credentials: %w", err)
+				if shouldSave {
+					if err := store.Set(account, secrets.Credentials{
+						Email:    result.Email,
+						Password: result.Password,
+					}); err != nil {
+						return fmt.Errorf("failed to store credentials: %w", err)
+					}
+					fmt.Printf("Saved account: %s\n", account)
 				}
-				fmt.Printf("Saved account: %s\n", account)
 			}
 		}
 
-	done:
 		fmt.Println("You can now use eightsleep commands. Try: eightsleep status")
 
 		return nil
