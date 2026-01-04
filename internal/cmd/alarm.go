@@ -105,7 +105,7 @@ var alarmUpdateCmd = &cobra.Command{
 			return err
 		}
 		routineID, _ := cmd.Flags().GetString("routine")
-		routine, alarm, _, err := findRoutineAlarm(state.Routines, routineID, args[0])
+		routine, alarm, err := findRoutineAlarm(state.Routines, routineID, args[0])
 		if err != nil {
 			return err
 		}
@@ -132,7 +132,7 @@ var alarmDeleteCmd = &cobra.Command{
 			return err
 		}
 		routineID, _ := cmd.Flags().GetString("routine")
-		routine, alarm, _, err := findRoutineAlarm(state.Routines, routineID, args[0])
+		routine, alarm, err := findRoutineAlarm(state.Routines, routineID, args[0])
 		if err != nil {
 			return err
 		}
@@ -331,7 +331,7 @@ func formatDays(days []int) string {
 	return strings.Join(out, ",")
 }
 
-func findRoutineAlarm(routines []client.Routine, routineID, alarmID string) (*client.Routine, *client.RoutineAlarm, bool, error) {
+func findRoutineAlarm(routines []client.Routine, routineID, alarmID string) (*client.Routine, *client.RoutineAlarm, error) {
 	for i := range routines {
 		r := &routines[i]
 		if routineID != "" && r.ID != routineID {
@@ -340,18 +340,18 @@ func findRoutineAlarm(routines []client.Routine, routineID, alarmID string) (*cl
 		if r.Override != nil {
 			for j := range r.Override.Alarms {
 				if r.Override.Alarms[j].AlarmID == alarmID {
-					return r, &r.Override.Alarms[j], true, nil
+					return r, &r.Override.Alarms[j], nil
 				}
 			}
 		}
 		for j := range r.Alarms {
 			if r.Alarms[j].AlarmID == alarmID {
-				return r, &r.Alarms[j], false, nil
+				return r, &r.Alarms[j], nil
 			}
 		}
 	}
 	if routineID != "" {
-		return nil, nil, false, fmt.Errorf("alarm %s not found in routine %s", alarmID, routineID)
+		return nil, nil, fmt.Errorf("alarm %s not found in routine %s", alarmID, routineID)
 	}
-	return nil, nil, false, fmt.Errorf("alarm %s not found", alarmID)
+	return nil, nil, fmt.Errorf("alarm %s not found", alarmID)
 }
