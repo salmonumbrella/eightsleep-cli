@@ -18,7 +18,11 @@ import (
 
 // LoginResult contains the result of a browser-based login
 type LoginResult struct {
-	Email    string
+	Email string
+	// Password is stored temporarily to enable keyring storage in cmd/auth.go.
+	// Once stored in keyring via secrets.Store.Set(), this field is no longer accessed.
+	// The password is needed because Eight Sleep uses password-grant OAuth and tokens expire,
+	// requiring re-authentication with the stored password from keyring.
 	Password string
 	UserID   string
 	Error    error
