@@ -19,6 +19,10 @@ func resolveTimezone(name string) (string, error) {
 	return name, nil
 }
 
+// localTimezoneName attempts to resolve the local timezone to an IANA name.
+// Note: This function uses Unix-specific paths (/etc/localtime, /etc/timezone)
+// and will not work on Windows. On Windows, time.Now().Location().String() may
+// return "Local" which cannot be resolved to an IANA timezone name.
 func localTimezoneName() (string, error) {
 	if tz := strings.TrimSpace(os.Getenv("TZ")); tz != "" && !strings.EqualFold(tz, "local") {
 		if _, err := time.LoadLocation(tz); err == nil {
