@@ -104,7 +104,7 @@ var alarmUpdateCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		routineID := viper.GetString("routine")
+		routineID, _ := cmd.Flags().GetString("routine")
 		routine, alarm, _, err := findRoutineAlarm(state.Routines, routineID, args[0])
 		if err != nil {
 			return err
@@ -131,7 +131,7 @@ var alarmDeleteCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		routineID := viper.GetString("routine")
+		routineID, _ := cmd.Flags().GetString("routine")
 		routine, alarm, _, err := findRoutineAlarm(state.Routines, routineID, args[0])
 		if err != nil {
 			return err
@@ -162,8 +162,6 @@ func init() {
 	_ = viper.BindPFlag("days", alarmUpdateCmd.Flags().Lookup("days"))
 	_ = viper.BindPFlag("enabled", alarmUpdateCmd.Flags().Lookup("enabled"))
 	_ = viper.BindPFlag("no-vibration", alarmUpdateCmd.Flags().Lookup("no-vibration"))
-	_ = viper.BindPFlag("routine", alarmUpdateCmd.Flags().Lookup("routine"))
-	_ = viper.BindPFlag("routine", alarmDeleteCmd.Flags().Lookup("routine"))
 
 	// add subcommands
 	alarmCmd.AddCommand(alarmListCmd, alarmCreateCmd, alarmOneOffCmd, alarmUpdateCmd, alarmDeleteCmd, alarmSnoozeCmd, alarmDismissCmd, alarmDismissAllCmd, alarmVibeCmd)
