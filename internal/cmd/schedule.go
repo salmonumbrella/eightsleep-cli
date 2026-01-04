@@ -101,12 +101,12 @@ var scheduleCreateCmd = &cobra.Command{
 		}
 		start := viper.GetString("start")
 		if start == "" {
-			return fmt.Errorf("--start HH:MM required")
+			return fmt.Errorf("--start is required (HH:MM format)")
 		}
 		level := viper.GetInt("level")
 		days := viper.GetIntSlice("days")
 		if len(days) == 0 {
-			return fmt.Errorf("--days required")
+			return fmt.Errorf("--days is required")
 		}
 		enabled := !viper.GetBool("disabled")
 		cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))

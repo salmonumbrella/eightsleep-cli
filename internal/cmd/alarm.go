@@ -269,7 +269,7 @@ func runOneOffAlarm(cmd *cobra.Command) error {
 	}
 	timeStr := viper.GetString("time")
 	if timeStr == "" {
-		return fmt.Errorf("--time required (HH:MM)")
+		return fmt.Errorf("--time is required (HH:MM format)")
 	}
 	if err := validateOneOffAlarmInputs(timeStr, viper.GetInt("vibration-level"), viper.GetInt("thermal-level"), viper.GetString("vibration-pattern")); err != nil {
 		return err
@@ -293,7 +293,7 @@ func runOneOffAlarm(cmd *cobra.Command) error {
 
 func validateOneOffAlarmInputs(timeStr string, vibrationLevel, thermalLevel int, vibrationPattern string) error {
 	if !validAlarmTime(timeStr) {
-		return fmt.Errorf("--time must be HH:MM (24-hour)")
+		return fmt.Errorf("--time must be valid time (HH:MM format)")
 	}
 	if vibrationLevel < 0 || vibrationLevel > 100 {
 		return fmt.Errorf("--vibration-level must be between 0 and 100")
