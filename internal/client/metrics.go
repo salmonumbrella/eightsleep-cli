@@ -33,4 +33,3 @@ func (m *MetricsActions) Intervals(ctx context.Context, sessionID string, out an
 	path := fmt.Sprintf("/users/%s/intervals/%s", m.c.UserID, sessionID)
 	return m.c.do(ctx, http.MethodGet, path, nil, nil, out)
 }
-
