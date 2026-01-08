@@ -1,46 +1,53 @@
 package cmd
 
 import (
-	"context"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/salmonumbrella/eightsleep-cli/internal/client"
 	"github.com/salmonumbrella/eightsleep-cli/internal/output"
 )
 
 var metricsCmd = &cobra.Command{Use: "metrics", Short: "Sleep metrics (trends, intervals)"}
 
 var metricsTrendsCmd = &cobra.Command{Use: "trends", RunE: func(cmd *cobra.Command, args []string) error {
-	if err := requireAuthFields(); err != nil {
+	cl, err := requireClient()
+	if err != nil {
 		return err
 	}
+	ctx, cancel, err := requestContext(cmd)
+	if err != nil {
+		return err
+	}
+	defer cancel()
 	from, _ := cmd.Flags().GetString("from")
 	to, _ := cmd.Flags().GetString("to")
 	tz, err := resolveTimezone(viper.GetString("timezone"))
 	if err != nil {
 		return err
 	}
-	cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
 	var out any
-	if err := cl.Metrics().Trends(context.Background(), from, to, tz, &out); err != nil {
+	if err := cl.Metrics().Trends(ctx, from, to, tz, &out); err != nil {
 		return err
 	}
-	return output.Print(output.Format(viper.GetString("output")), []string{"trends"}, []map[string]any{{"trends": out}})
+	return output.Print(outputFormat(), []string{"trends"}, []map[string]any{{"trends": out}})
 }}
 
 var metricsIntervalsCmd = &cobra.Command{Use: "intervals", RunE: func(cmd *cobra.Command, args []string) error {
-	if err := requireAuthFields(); err != nil {
+	cl, err := requireClient()
+	if err != nil {
 		return err
 	}
+	ctx, cancel, err := requestContext(cmd)
+	if err != nil {
+		return err
+	}
+	defer cancel()
 	id, _ := cmd.Flags().GetString("id")
-	cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
 	var out any
-	if err := cl.Metrics().Intervals(context.Background(), id, &out); err != nil {
+	if err := cl.Metrics().Intervals(ctx, id, &out); err != nil {
 		return err
 	}
-	return output.Print(output.Format(viper.GetString("output")), []string{"interval"}, []map[string]any{{"interval": out}})
+	return output.Print(outputFormat(), []string{"interval"}, []map[string]any{{"interval": out}})
 }}
 
 func init() {

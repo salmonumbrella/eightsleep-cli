@@ -20,6 +20,8 @@ type Config struct {
 	Output       string   `mapstructure:"output"`
 	Fields       []string `mapstructure:"fields"`
 	Verbose      bool     `mapstructure:"verbose"`
+	Timeout      string   `mapstructure:"timeout"`
+	Retries      int      `mapstructure:"retries"`
 }
 
 // Load initializes viper and unmarshals Config.
@@ -45,6 +47,8 @@ func Load(configPath string, quiet bool) (Config, error) {
 	// defaults
 	v.SetDefault("timezone", "local")
 	v.SetDefault("output", "table")
+	v.SetDefault("timeout", "20s")
+	v.SetDefault("retries", 2)
 
 	if err := v.ReadInConfig(); err == nil {
 		if !quiet {

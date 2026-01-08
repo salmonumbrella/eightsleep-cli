@@ -108,6 +108,8 @@ Configuration sources are applied in this order (highest priority first):
 - `EIGHTSLEEP_CLIENT_SECRET` - OAuth client secret (optional)
 - `EIGHTSLEEP_TIMEZONE` - IANA timezone or `local` (default: local)
 - `EIGHTSLEEP_OUTPUT` - Output format: `table`, `json`, or `csv` (default: table)
+- `EIGHTSLEEP_TIMEOUT` - Request timeout duration (e.g., `30s`, `1m`; default: 20s)
+- `EIGHTSLEEP_RETRIES` - Retry count for transient API errors (default: 2)
 - `EIGHTSLEEP_VERBOSE` - Enable verbose logging (true/false)
 
 ### Config File
@@ -120,6 +122,8 @@ password: "your-password"
 # user_id: "optional"              # auto-resolved via /users/me
 # timezone: "America/New_York"     # defaults to local
 # output: "table"                  # table|json|csv
+# timeout: "20s"                   # request timeout
+# retries: 2                       # retry count for transient errors
 # verbose: false
 ```
 
@@ -418,6 +422,8 @@ All commands support these flags:
 - `--timezone <tz>` - IANA timezone or `local` (default: local)
 - `--output <format>` - Output format: `table`, `json`, or `csv` (default: table)
 - `--fields <fields>` - Comma-separated list of fields to display
+- `--timeout <duration>` - Request timeout (e.g., `30s`, `1m`)
+- `--retries <count>` - Retry count for transient API errors
 - `--verbose`, `-v` - Enable verbose logging
 - `--quiet` - Suppress config loading banner
 - `--help`, `-h` - Show help for any command

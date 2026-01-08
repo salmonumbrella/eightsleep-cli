@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -22,11 +21,16 @@ var alarmListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List alarms",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireAuthFields(); err != nil {
+		cl, err := requireClient()
+		if err != nil {
 			return err
 		}
-		cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
-		alarms, err := cl.ListAlarms(context.Background())
+		ctx, cancel, err := requestContext(cmd)
+		if err != nil {
+			return err
+		}
+		defer cancel()
+		alarms, err := cl.ListAlarms(ctx)
 		if err != nil {
 			return err
 		}
@@ -42,7 +46,7 @@ var alarmListCmd = &cobra.Command{
 				"vibration":    a.Vibration,
 			})
 		}
-		format := output.Format(viper.GetString("output"))
+		format := outputFormat()
 		if format != output.FormatJSON {
 			for _, row := range rows {
 				if days, ok := row["days"].([]int); ok {
@@ -50,8 +54,16 @@ var alarmListCmd = &cobra.Command{
 				}
 			}
 		}
-		rows = output.FilterFields(rows, viper.GetStringSlice("fields"))
-		return output.Print(format, []string{"routine_id", "routine_name", "id", "time", "enabled", "days", "vibration"}, rows)
+		fields := viper.GetStringSlice("fields")
+		if err := validateFields(fields, []string{"routine_id", "routine_name", "id", "time", "enabled", "days", "vibration"}); err != nil {
+			return err
+		}
+		rows = output.FilterFields(rows, fields)
+		headers := []string{"routine_id", "routine_name", "id", "time", "enabled", "days", "vibration"}
+		if len(fields) > 0 {
+			headers = fields
+		}
+		return output.Print(format, headers, rows)
 	},
 }
 
@@ -77,9 +89,15 @@ var alarmUpdateCmd = &cobra.Command{
 	Short: "Update an alarm",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireAuthFields(); err != nil {
+		cl, err := requireClient()
+		if err != nil {
 			return err
 		}
+		ctx, cancel, err := requestContext(cmd)
+		if err != nil {
+			return err
+		}
+		defer cancel()
 		patch := alarmPatch{}
 		if f := viper.GetString("time"); f != "" {
 			patch.Time = &f
@@ -99,8 +117,7 @@ var alarmUpdateCmd = &cobra.Command{
 		if patch.Empty() {
 			return fmt.Errorf("no fields to update")
 		}
-		cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
-		state, err := cl.ListRoutines(context.Background())
+		state, err := cl.ListRoutines(ctx)
 		if err != nil {
 			return err
 		}
@@ -110,7 +127,7 @@ var alarmUpdateCmd = &cobra.Command{
 			return err
 		}
 		applyAlarmPatch(routine, alarm, patch)
-		if err := cl.UpdateRoutine(context.Background(), routine.ID, *routine); err != nil {
+		if err := cl.UpdateRoutine(ctx, routine.ID, *routine); err != nil {
 			return err
 		}
 		fmt.Println("updated")
@@ -123,11 +140,16 @@ var alarmDeleteCmd = &cobra.Command{
 	Short: "Disable an alarm",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireAuthFields(); err != nil {
+		cl, err := requireClient()
+		if err != nil {
 			return err
 		}
-		cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
-		state, err := cl.ListRoutines(context.Background())
+		ctx, cancel, err := requestContext(cmd)
+		if err != nil {
+			return err
+		}
+		defer cancel()
+		state, err := cl.ListRoutines(ctx)
 		if err != nil {
 			return err
 		}
@@ -138,7 +160,7 @@ var alarmDeleteCmd = &cobra.Command{
 		}
 		alarm.Enabled = false
 		alarm.DisabledIndividually = true
-		if err := cl.UpdateRoutine(context.Background(), routine.ID, *routine); err != nil {
+		if err := cl.UpdateRoutine(ctx, routine.ID, *routine); err != nil {
 			return err
 		}
 		fmt.Println("disabled")
@@ -171,39 +193,59 @@ func init() {
 
 // snooze
 var alarmSnoozeCmd = &cobra.Command{Use: "snooze <id>", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-	if err := requireAuthFields(); err != nil {
+	cl, err := requireClient()
+	if err != nil {
 		return err
 	}
-	cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
 	minutes, _ := cmd.Flags().GetInt("minutes")
 	if minutes <= 0 {
 		return fmt.Errorf("--minutes must be > 0")
 	}
-	return cl.Alarms().Snooze(context.Background(), args[0], minutes)
+	ctx, cancel, err := requestContext(cmd)
+	if err != nil {
+		return err
+	}
+	defer cancel()
+	return cl.Alarms().Snooze(ctx, args[0], minutes)
 }}
 
 var alarmDismissCmd = &cobra.Command{Use: "dismiss <id>", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-	if err := requireAuthFields(); err != nil {
+	cl, err := requireClient()
+	if err != nil {
 		return err
 	}
-	cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
-	return cl.Alarms().Dismiss(context.Background(), args[0])
+	ctx, cancel, err := requestContext(cmd)
+	if err != nil {
+		return err
+	}
+	defer cancel()
+	return cl.Alarms().Dismiss(ctx, args[0])
 }}
 
 var alarmDismissAllCmd = &cobra.Command{Use: "dismiss-all", Short: "Dismiss next active alarm", RunE: func(cmd *cobra.Command, args []string) error {
-	if err := requireAuthFields(); err != nil {
+	cl, err := requireClient()
+	if err != nil {
 		return err
 	}
-	cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
-	return cl.Alarms().DismissAll(context.Background())
+	ctx, cancel, err := requestContext(cmd)
+	if err != nil {
+		return err
+	}
+	defer cancel()
+	return cl.Alarms().DismissAll(ctx)
 }}
 
 var alarmVibeCmd = &cobra.Command{Use: "vibration-test", RunE: func(cmd *cobra.Command, args []string) error {
-	if err := requireAuthFields(); err != nil {
+	cl, err := requireClient()
+	if err != nil {
 		return err
 	}
-	cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
-	return cl.Alarms().VibrationTest(context.Background())
+	ctx, cancel, err := requestContext(cmd)
+	if err != nil {
+		return err
+	}
+	defer cancel()
+	return cl.Alarms().VibrationTest(ctx)
 }}
 
 type alarmPatch struct {
@@ -264,9 +306,15 @@ func addOneOffFlags(cmd *cobra.Command) {
 }
 
 func runOneOffAlarm(cmd *cobra.Command) error {
-	if err := requireAuthFields(); err != nil {
+	cl, err := requireClient()
+	if err != nil {
 		return err
 	}
+	ctx, cancel, err := requestContext(cmd)
+	if err != nil {
+		return err
+	}
+	defer cancel()
 	timeStr := viper.GetString("time")
 	if timeStr == "" {
 		return fmt.Errorf("--time is required (HH:MM format)")
@@ -274,7 +322,6 @@ func runOneOffAlarm(cmd *cobra.Command) error {
 	if err := validateOneOffAlarmInputs(timeStr, viper.GetInt("vibration-level"), viper.GetInt("thermal-level"), viper.GetString("vibration-pattern")); err != nil {
 		return err
 	}
-	cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
 	alarm := client.OneOffAlarm{
 		Time:             timeStr,
 		Enabled:          !viper.GetBool("disabled"),
@@ -284,7 +331,7 @@ func runOneOffAlarm(cmd *cobra.Command) error {
 		ThermalEnabled:   !viper.GetBool("no-thermal"),
 		ThermalLevel:     viper.GetInt("thermal-level"),
 	}
-	if err := cl.SetOneOffAlarm(context.Background(), alarm); err != nil {
+	if err := cl.SetOneOffAlarm(ctx, alarm); err != nil {
 		return err
 	}
 	fmt.Println("created one-off alarm")

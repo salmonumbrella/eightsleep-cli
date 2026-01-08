@@ -150,7 +150,12 @@ Examples:
 		// Test credentials before saving
 		fmt.Println("Testing credentials...")
 		c := client.New(email, password, "", "", "")
-		if err := c.Authenticate(cmd.Context()); err != nil {
+		ctx, cancel, err := requestContext(cmd)
+		if err != nil {
+			return err
+		}
+		defer cancel()
+		if err := c.Authenticate(ctx); err != nil {
 			return fmt.Errorf("authentication failed: %w", err)
 		}
 
@@ -246,7 +251,12 @@ var authTestCmd = &cobra.Command{
 			if email != "" && password != "" {
 				fmt.Printf("Testing credentials for: %s\n", email)
 				c := client.New(email, password, "", "", "")
-				if err := c.Authenticate(cmd.Context()); err != nil {
+				ctx, cancel, err := requestContext(cmd)
+				if err != nil {
+					return err
+				}
+				defer cancel()
+				if err := c.Authenticate(ctx); err != nil {
 					return fmt.Errorf("authentication failed: %w", err)
 				}
 				fmt.Println("Credentials valid")
@@ -269,7 +279,12 @@ var authTestCmd = &cobra.Command{
 		fmt.Printf("Testing account: %s (email: %s)\n", account, creds.Email)
 
 		c := client.New(creds.Email, creds.Password, "", "", "")
-		if err := c.Authenticate(cmd.Context()); err != nil {
+		ctx, cancel, err := requestContext(cmd)
+		if err != nil {
+			return err
+		}
+		defer cancel()
+		if err := c.Authenticate(ctx); err != nil {
 			return fmt.Errorf("authentication failed: %w", err)
 		}
 
@@ -282,13 +297,10 @@ var authLogoutCmd = &cobra.Command{
 	Use:   "logout",
 	Short: "Clear cached authentication token",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c := client.New(
-			viper.GetString("email"),
-			viper.GetString("password"),
-			viper.GetString("user_id"),
-			viper.GetString("client_id"),
-			viper.GetString("client_secret"),
-		)
+		c, err := newClientFromConfig()
+		if err != nil {
+			return err
+		}
 		if err := tokencache.Clear(c.Identity()); err != nil {
 			return fmt.Errorf("clear token: %w", err)
 		}

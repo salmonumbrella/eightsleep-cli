@@ -1,13 +1,11 @@
 package cmd
 
 import (
-	"context"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/salmonumbrella/eightsleep-cli/internal/client"
 	"github.com/salmonumbrella/eightsleep-cli/internal/output"
 )
 
@@ -21,9 +19,15 @@ var sleepDayCmd = &cobra.Command{
 	Short: "Fetch sleep metrics for a date (YYYY-MM-DD)",
 	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireAuthFields(); err != nil {
+		cl, err := requireClient()
+		if err != nil {
 			return err
 		}
+		ctx, cancel, err := requestContext(cmd)
+		if err != nil {
+			return err
+		}
+		defer cancel()
 		date := viper.GetString("date")
 		if date == "" {
 			date = time.Now().Format("2006-01-02")
@@ -32,8 +36,7 @@ var sleepDayCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
-		day, err := cl.GetSleepDay(context.Background(), date, tz)
+		day, err := cl.GetSleepDay(ctx, date, tz)
 		if err != nil {
 			return err
 		}
@@ -50,8 +53,16 @@ var sleepDayCmd = &cobra.Command{
 				"hrv_score":      day.SleepQuality.HRV.Score,
 			},
 		}
-		rows = output.FilterFields(rows, viper.GetStringSlice("fields"))
-		return output.Print(output.Format(viper.GetString("output")), []string{"date", "score", "duration", "latency_asleep", "latency_out", "tnt", "resp_rate", "heart_rate", "hrv_score"}, rows)
+		fields := viper.GetStringSlice("fields")
+		if err := validateFields(fields, []string{"date", "score", "duration", "latency_asleep", "latency_out", "tnt", "resp_rate", "heart_rate", "hrv_score"}); err != nil {
+			return err
+		}
+		rows = output.FilterFields(rows, fields)
+		headers := []string{"date", "score", "duration", "latency_asleep", "latency_out", "tnt", "resp_rate", "heart_rate", "hrv_score"}
+		if len(fields) > 0 {
+			headers = fields
+		}
+		return output.Print(outputFormat(), headers, rows)
 	},
 }
 

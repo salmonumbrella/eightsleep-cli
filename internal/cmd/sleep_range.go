@@ -1,14 +1,12 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/salmonumbrella/eightsleep-cli/internal/client"
 	"github.com/salmonumbrella/eightsleep-cli/internal/output"
 )
 
@@ -16,9 +14,15 @@ var sleepRangeCmd = &cobra.Command{
 	Use:   "range",
 	Short: "Fetch sleep metrics for a date range",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireAuthFields(); err != nil {
+		cl, err := requireClient()
+		if err != nil {
 			return err
 		}
+		ctx, cancel, err := requestContext(cmd)
+		if err != nil {
+			return err
+		}
+		defer cancel()
 		from, _ := cmd.Flags().GetString("from")
 		to, _ := cmd.Flags().GetString("to")
 		if from == "" || to == "" {
@@ -40,10 +44,9 @@ var sleepRangeCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cl := client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret"))
 		rows := []map[string]any{}
 		for d := start; !d.After(end); d = d.Add(24 * time.Hour) {
-			day, err := cl.GetSleepDay(context.Background(), d.Format(layout), tz)
+			day, err := cl.GetSleepDay(ctx, d.Format(layout), tz)
 			if err != nil {
 				return err
 			}
@@ -57,12 +60,16 @@ var sleepRangeCmd = &cobra.Command{
 				"hrv_score":  day.SleepQuality.HRV.Score,
 			})
 		}
-		rows = output.FilterFields(rows, viper.GetStringSlice("fields"))
-		headers := []string{"date", "score", "duration", "tnt", "resp_rate", "heart_rate", "hrv_score"}
-		if len(viper.GetStringSlice("fields")) > 0 {
-			headers = viper.GetStringSlice("fields")
+		fields := viper.GetStringSlice("fields")
+		if err := validateFields(fields, []string{"date", "score", "duration", "tnt", "resp_rate", "heart_rate", "hrv_score"}); err != nil {
+			return err
 		}
-		return output.Print(output.Format(viper.GetString("output")), headers, rows)
+		rows = output.FilterFields(rows, fields)
+		headers := []string{"date", "score", "duration", "tnt", "resp_rate", "heart_rate", "hrv_score"}
+		if len(fields) > 0 {
+			headers = fields
+		}
+		return output.Print(outputFormat(), headers, rows)
 	},
 }
 

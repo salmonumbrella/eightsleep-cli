@@ -43,6 +43,8 @@ func init() {
 	rootCmd.PersistentFlags().String("timezone", "local", "IANA timezone (e.g., America/New_York) or 'local'")
 	rootCmd.PersistentFlags().String("output", "table", "output format: table|json|csv")
 	rootCmd.PersistentFlags().StringSlice("fields", []string{}, "output fields filter")
+	rootCmd.PersistentFlags().String("timeout", "20s", "request timeout (e.g., 30s, 1m)")
+	rootCmd.PersistentFlags().Int("retries", 2, "retry count for transient API errors")
 	rootCmd.PersistentFlags().Bool("quiet", false, "suppress config load message")
 
 	_ = viper.BindPFlag("config", rootCmd.PersistentFlags().Lookup("config"))
@@ -56,6 +58,8 @@ func init() {
 	_ = viper.BindPFlag("timezone", rootCmd.PersistentFlags().Lookup("timezone"))
 	_ = viper.BindPFlag("output", rootCmd.PersistentFlags().Lookup("output"))
 	_ = viper.BindPFlag("fields", rootCmd.PersistentFlags().Lookup("fields"))
+	_ = viper.BindPFlag("timeout", rootCmd.PersistentFlags().Lookup("timeout"))
+	_ = viper.BindPFlag("retries", rootCmd.PersistentFlags().Lookup("retries"))
 	_ = viper.BindPFlag("config-quiet", rootCmd.PersistentFlags().Lookup("quiet"))
 
 	rootCmd.AddCommand(authCmd)
@@ -93,6 +97,8 @@ func initConfig() {
 	viper.SetDefault("output", cfg.Output)
 	viper.SetDefault("fields", cfg.Fields)
 	viper.SetDefault("verbose", cfg.Verbose)
+	viper.SetDefault("timeout", cfg.Timeout)
+	viper.SetDefault("retries", cfg.Retries)
 
 	// Load credentials from keyring if account is specified
 	if account := viper.GetString("account"); account != "" {
