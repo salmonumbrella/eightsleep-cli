@@ -101,3 +101,93 @@ func Test429Retry(t *testing.T) {
 		t.Fatalf("expected backoff, got %v", elapsed)
 	}
 }
+
+func TestContextTimeout(t *testing.T) {
+	// Server that delays response beyond context timeout
+	mux := http.NewServeMux()
+	mux.HandleFunc("/slow", func(w http.ResponseWriter, r *http.Request) {
+		// Sleep longer than the context timeout
+		time.Sleep(500 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	c := New("email", "pass", "uid", "", "")
+	c.BaseURL = srv.URL
+	c.token = "t"
+	c.tokenExp = time.Now().Add(time.Hour)
+	c.HTTP = srv.Client()
+	c.HTTP.Timeout = 100 * time.Millisecond // Short HTTP timeout
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	err := c.do(ctx, http.MethodGet, "/slow", nil, nil, nil)
+	if err == nil {
+		t.Fatal("expected timeout error, got nil")
+	}
+	// Should be context deadline exceeded
+	if ctx.Err() != context.DeadlineExceeded {
+		t.Fatalf("expected context.DeadlineExceeded, got ctx.Err()=%v, err=%v", ctx.Err(), err)
+	}
+}
+
+func TestRetryExhaustion(t *testing.T) {
+	t.Run("MaxRetries=0", func(t *testing.T) {
+		count := 0
+		mux := http.NewServeMux()
+		mux.HandleFunc("/rate-limited", func(w http.ResponseWriter, r *http.Request) {
+			count++
+			w.WriteHeader(http.StatusTooManyRequests)
+		})
+		srv := httptest.NewServer(mux)
+		defer srv.Close()
+
+		c := New("email", "pass", "uid", "", "")
+		c.BaseURL = srv.URL
+		c.token = "t"
+		c.tokenExp = time.Now().Add(time.Hour)
+		c.HTTP = srv.Client()
+		c.MaxRetries = 0 // No retries
+
+		err := c.do(context.Background(), http.MethodGet, "/rate-limited", nil, nil, nil)
+		if err == nil {
+			t.Fatal("expected error after exhausting retries, got nil")
+		}
+		if count != 1 {
+			t.Fatalf("expected 1 attempt with MaxRetries=0, got %d", count)
+		}
+	})
+
+	t.Run("MaxRetries=1", func(t *testing.T) {
+		count := 0
+		mux := http.NewServeMux()
+		mux.HandleFunc("/rate-limited", func(w http.ResponseWriter, r *http.Request) {
+			count++
+			w.WriteHeader(http.StatusTooManyRequests)
+		})
+		srv := httptest.NewServer(mux)
+		defer srv.Close()
+
+		c := New("email", "pass", "uid", "", "")
+		c.BaseURL = srv.URL
+		c.token = "t"
+		c.tokenExp = time.Now().Add(time.Hour)
+		c.HTTP = srv.Client()
+		c.MaxRetries = 1 // One retry (2 total attempts)
+
+		start := time.Now()
+		err := c.do(context.Background(), http.MethodGet, "/rate-limited", nil, nil, nil)
+		if err == nil {
+			t.Fatal("expected error after exhausting retries, got nil")
+		}
+		if count != 2 {
+			t.Fatalf("expected 2 attempts with MaxRetries=1, got %d", count)
+		}
+		// Should have waited for backoff between attempts
+		if elapsed := time.Since(start); elapsed < time.Second {
+			t.Fatalf("expected backoff delay, elapsed=%v", elapsed)
+		}
+	})
+}
