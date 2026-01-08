@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"strings"
@@ -24,6 +25,7 @@ const (
 	// Extracted from the official Eight Sleep Android app v7.39.17 (public client creds)
 	defaultClientID     = "0894c7f33bb94800a03f1f4df13a4f38"
 	defaultClientSecret = "f0954a3ed5763ba3d06834c73731a32f15f168f47d4f164751275def86db0c76"
+	defaultMaxRetries   = 2
 )
 
 // Client represents Eight Sleep API client.
@@ -38,6 +40,9 @@ type Client struct {
 	HTTP       *http.Client
 	BaseURL    string
 	AppBaseURL string
+	// MaxRetries is the number of retry attempts for transient errors.
+	// A value of 0 means no retries; 1 means one retry, etc.
+	MaxRetries int
 	token      string
 	tokenExp   time.Time
 }
@@ -66,6 +71,7 @@ func New(email, password, userID, clientID, clientSecret string) *Client {
 		HTTP:         &http.Client{Timeout: 20 * time.Second, Transport: tr},
 		BaseURL:      defaultBaseURL,
 		AppBaseURL:   defaultAppBaseURL,
+		MaxRetries:   defaultMaxRetries,
 	}
 }
 
@@ -289,56 +295,131 @@ func (c *Client) doWithBase(ctx context.Context, baseURL, method, path string, q
 	if err := c.ensureToken(ctx); err != nil {
 		return err
 	}
-	var rdr io.Reader
+	var bodyBytes []byte
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
 			return err
 		}
-		rdr = bytes.NewReader(b)
+		bodyBytes = b
 	}
 	u := strings.TrimSuffix(baseURL, "/") + path
 	if len(query) > 0 {
 		u += "?" + query.Encode()
 	}
-	req, err := http.NewRequestWithContext(ctx, method, u, rdr)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
-	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Connection", "keep-alive")
-	req.Header.Set("User-Agent", "okhttp/4.9.3")
-	// Note: Don't set Accept-Encoding manually; Go's http.Transport handles gzip automatically
 
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return err
+	maxRetries := c.MaxRetries
+	if maxRetries < 0 {
+		maxRetries = 0
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode == http.StatusTooManyRequests {
-		time.Sleep(2 * time.Second)
-		return c.doWithBase(ctx, baseURL, method, path, query, body, out)
-	}
-	if resp.StatusCode == http.StatusUnauthorized {
-		b, _ := io.ReadAll(resp.Body)
-		log.Debug("api returned 401, clearing token", "method", method, "path", path, "body", string(b))
-		c.token = ""
-		_ = tokencache.Clear(c.Identity())
-		if err := c.ensureToken(ctx); err != nil {
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		var rdr io.Reader
+		if bodyBytes != nil {
+			rdr = bytes.NewReader(bodyBytes)
+		}
+		req, err := http.NewRequestWithContext(ctx, method, u, rdr)
+		if err != nil {
 			return err
 		}
-		return c.doWithBase(ctx, baseURL, method, path, query, body, out)
+		req.Header.Set("Authorization", "Bearer "+c.token)
+		req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Connection", "keep-alive")
+		req.Header.Set("User-Agent", "okhttp/4.9.3")
+		// Note: Don't set Accept-Encoding manually; Go's http.Transport handles gzip automatically
+
+		resp, err := c.HTTP.Do(req)
+		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if attempt < maxRetries {
+				if err := sleepWithContext(ctx, backoffDelay(attempt)); err != nil {
+					return err
+				}
+				continue
+			}
+			return err
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			_ = resp.Body.Close()
+			if attempt < maxRetries {
+				if err := sleepWithContext(ctx, backoffDelay(attempt)); err != nil {
+					return err
+				}
+				continue
+			}
+			return fmt.Errorf("api %s %s: %s", method, path, resp.Status)
+		}
+
+		if resp.StatusCode == http.StatusUnauthorized {
+			b, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			log.Debug("api returned 401, clearing token", "method", method, "path", path, "body", string(b))
+			c.token = ""
+			_ = tokencache.Clear(c.Identity())
+			if attempt < maxRetries {
+				if err := c.ensureToken(ctx); err != nil {
+					return err
+				}
+				continue
+			}
+			return fmt.Errorf("api %s %s: %s", method, path, string(b))
+		}
+
+		if resp.StatusCode >= 500 {
+			b, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if attempt < maxRetries {
+				if err := sleepWithContext(ctx, backoffDelay(attempt)); err != nil {
+					return err
+				}
+				continue
+			}
+			return fmt.Errorf("api %s %s: %s", method, path, string(b))
+		}
+
+		if resp.StatusCode >= 300 {
+			b, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			return fmt.Errorf("api %s %s: %s", method, path, string(b))
+		}
+
+		if out != nil {
+			defer func() { _ = resp.Body.Close() }()
+			return json.NewDecoder(resp.Body).Decode(out)
+		}
+		_ = resp.Body.Close()
+		return nil
 	}
-	if resp.StatusCode >= 300 {
-		b, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("api %s %s: %s", method, path, string(b))
+	return fmt.Errorf("api %s %s: retries exhausted", method, path)
+}
+
+func backoffDelay(attempt int) time.Duration {
+	if attempt < 0 {
+		return 2 * time.Second
 	}
-	if out != nil {
-		return json.NewDecoder(resp.Body).Decode(out)
+	delay := time.Duration(1<<attempt) * 2 * time.Second
+	// Add +/- 25% jitter to prevent thundering herd when many clients retry simultaneously.
+	// This results in delays between 75% and 125% of the base delay.
+	jitter := time.Duration(rand.Int64N(int64(delay/2))) - delay/4
+	delay += jitter
+	if delay > 10*time.Second {
+		delay = 10 * time.Second
 	}
-	return nil
+	return delay
+}
+
+func sleepWithContext(ctx context.Context, d time.Duration) error {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // TurnOn powers device on by setting state to "smart".
