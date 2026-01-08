@@ -43,7 +43,6 @@ var metricsIntervalsCmd = &cobra.Command{Use: "intervals", RunE: func(cmd *cobra
 	return output.Print(output.Format(viper.GetString("output")), []string{"interval"}, []map[string]any{{"interval": out}})
 }}
 
-
 func init() {
 	metricsTrendsCmd.Flags().String("from", "", "from date YYYY-MM-DD")
 	metricsTrendsCmd.Flags().String("to", "", "to date YYYY-MM-DD")
