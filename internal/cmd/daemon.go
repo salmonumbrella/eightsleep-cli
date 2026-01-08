@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,7 +10,6 @@ import (
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 
-	"github.com/salmonumbrella/eightsleep-cli/internal/client"
 	"github.com/salmonumbrella/eightsleep-cli/internal/daemon"
 )
 
@@ -19,7 +17,8 @@ var daemonCmd = &cobra.Command{
 	Use:   "daemon",
 	Short: "Run schedule daemon from config file",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireAuthFields(); err != nil {
+		cl, err := requireClient()
+		if err != nil {
 			return err
 		}
 		cfgData, err := readConfigSchedule()
@@ -30,25 +29,26 @@ var daemonCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		tzName := viper.GetString("timezone")
-		loc := time.Local
-		if tzName != "local" {
-			loc, err = time.LoadLocation(tzName)
-			if err != nil {
-				return fmt.Errorf("load timezone: %w", err)
-			}
+		tzName, err := resolveTimezone(viper.GetString("timezone"))
+		if err != nil {
+			return err
+		}
+		loc, err := time.LoadLocation(tzName)
+		if err != nil {
+			return fmt.Errorf("load timezone: %w", err)
 		}
 		r := daemon.Runner{
 			Items:    items,
-			Client:   client.New(viper.GetString("email"), viper.GetString("password"), viper.GetString("user_id"), viper.GetString("client_id"), viper.GetString("client_secret")),
+			Client:   cl,
 			Timezone: loc,
 			DryRun:   viper.GetBool("dry-run"),
 			Sync:     viper.GetBool("sync-state"),
 			PIDFile:  defaultPIDFile(viper.GetString("pid-file")),
 		}
-		ctx := context.Background()
 		fmt.Printf("daemon started with %d items\n", len(items))
-		return r.Run(ctx)
+		// Use cmd.Context() directly instead of requestContext() because daemons
+		// run indefinitely and should not have a timeout applied.
+		return r.Run(cmd.Context())
 	},
 }
 
