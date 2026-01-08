@@ -97,8 +97,9 @@ func Test429Retry(t *testing.T) {
 	if count != 2 {
 		t.Fatalf("expected 2 attempts, got %d", count)
 	}
-	if elapsed := time.Since(start); elapsed < 2*time.Second {
-		t.Fatalf("expected backoff, got %v", elapsed)
+	// With +/- 25% jitter, minimum delay is 75% of 2s = 1.5s
+	if elapsed := time.Since(start); elapsed < 1500*time.Millisecond {
+		t.Fatalf("expected backoff with jitter (min 1.5s), got %v", elapsed)
 	}
 }
 
