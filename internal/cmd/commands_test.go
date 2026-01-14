@@ -144,13 +144,17 @@ func TestAlarmListCommand(t *testing.T) {
 
 func TestAlarmOneOffCommand(t *testing.T) {
 	setupTestEnv(t)
-	viper.Set("time", "07:30")
-	viper.Set("disabled", false)
-	viper.Set("no-vibration", false)
-	viper.Set("no-thermal", false)
-	viper.Set("thermal-level", 0)
-	viper.Set("vibration-level", 50)
-	viper.Set("vibration-pattern", "RISE")
+	resetFlagsOnCleanup(t, alarmOneOffCmd)
+	// Set flags directly on command (not viper) since runOneOffAlarm reads from cmd.Flags()
+	if err := alarmOneOffCmd.Flags().Set("time", "07:30"); err != nil {
+		t.Fatalf("set time: %v", err)
+	}
+	if err := alarmOneOffCmd.Flags().Set("vibration-level", "50"); err != nil {
+		t.Fatalf("set vibration-level: %v", err)
+	}
+	if err := alarmOneOffCmd.Flags().Set("vibration-pattern", "RISE"); err != nil {
+		t.Fatalf("set vibration-pattern: %v", err)
+	}
 	if err := alarmOneOffCmd.RunE(alarmOneOffCmd, []string{}); err != nil {
 		t.Fatalf("alarm one-off: %v", err)
 	}

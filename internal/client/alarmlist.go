@@ -119,10 +119,16 @@ func (c *Client) SetOneOffAlarm(ctx context.Context, alarm OneOffAlarm) error {
 		return err
 	}
 	path := fmt.Sprintf("/v2/users/%s/routines", c.UserID)
+	// Ensure time has seconds (HH:MM:SS format) for NodaTime.LocalTime
+	timeWithSeconds := alarm.Time
+	if len(alarm.Time) == 5 { // HH:MM format
+		timeWithSeconds = alarm.Time + ":00"
+	}
 	body := map[string]any{
+		"state": map[string]any{}, // Required by API
 		"oneOffAlarms": []map[string]any{
 			{
-				"time":    alarm.Time,
+				"time":    timeWithSeconds,
 				"enabled": alarm.Enabled,
 				"settings": map[string]any{
 					"vibration": map[string]any{

@@ -99,19 +99,22 @@ var alarmUpdateCmd = &cobra.Command{
 		}
 		defer cancel()
 		patch := alarmPatch{}
-		if f := viper.GetString("time"); f != "" {
-			patch.Time = &f
+		// Read flags directly from cmd to avoid viper binding conflicts
+		if timeStr, _ := cmd.Flags().GetString("time"); timeStr != "" {
+			patch.Time = &timeStr
 		}
 		if cmd.Flags().Changed("days") {
-			patch.Days = viper.GetIntSlice("days")
+			days, _ := cmd.Flags().GetIntSlice("days")
+			patch.Days = days
 			patch.DaysSet = true
 		}
 		if cmd.Flags().Changed("enabled") {
-			val := viper.GetBool("enabled")
+			val, _ := cmd.Flags().GetBool("enabled")
 			patch.Enabled = &val
 		}
 		if cmd.Flags().Changed("no-vibration") {
-			val := !viper.GetBool("no-vibration")
+			noVib, _ := cmd.Flags().GetBool("no-vibration")
+			val := !noVib
 			patch.Vibration = &val
 		}
 		if patch.Empty() {
@@ -182,10 +185,7 @@ func init() {
 	// 9 minutes is the industry-standard snooze duration, dating back to the 1956 GE Snooz-Alarm.
 	// Most alarm clocks and phones (including iPhone) use this default, and Eight Sleep likely follows suit.
 	alarmSnoozeCmd.Flags().Int("minutes", 9, "Snooze minutes")
-	_ = viper.BindPFlag("time", alarmUpdateCmd.Flags().Lookup("time"))
-	_ = viper.BindPFlag("days", alarmUpdateCmd.Flags().Lookup("days"))
-	_ = viper.BindPFlag("enabled", alarmUpdateCmd.Flags().Lookup("enabled"))
-	_ = viper.BindPFlag("no-vibration", alarmUpdateCmd.Flags().Lookup("no-vibration"))
+	// Note: viper bindings removed - commands read directly from cmd.Flags() to avoid binding conflicts
 
 	// add subcommands
 	alarmCmd.AddCommand(alarmListCmd, alarmCreateCmd, alarmOneOffCmd, alarmUpdateCmd, alarmDeleteCmd, alarmSnoozeCmd, alarmDismissCmd, alarmDismissAllCmd, alarmVibeCmd)
@@ -296,13 +296,7 @@ func addOneOffFlags(cmd *cobra.Command) {
 	cmd.Flags().Int("thermal-level", 0, "Thermal level (-100..100)")
 	cmd.Flags().Int("vibration-level", 50, "Vibration power level (0..100)")
 	cmd.Flags().String("vibration-pattern", "RISE", "Vibration pattern")
-	_ = viper.BindPFlag("time", cmd.Flags().Lookup("time"))
-	_ = viper.BindPFlag("disabled", cmd.Flags().Lookup("disabled"))
-	_ = viper.BindPFlag("no-vibration", cmd.Flags().Lookup("no-vibration"))
-	_ = viper.BindPFlag("no-thermal", cmd.Flags().Lookup("no-thermal"))
-	_ = viper.BindPFlag("thermal-level", cmd.Flags().Lookup("thermal-level"))
-	_ = viper.BindPFlag("vibration-level", cmd.Flags().Lookup("vibration-level"))
-	_ = viper.BindPFlag("vibration-pattern", cmd.Flags().Lookup("vibration-pattern"))
+	// Note: viper bindings removed - runOneOffAlarm reads directly from cmd.Flags()
 }
 
 func runOneOffAlarm(cmd *cobra.Command) error {
@@ -315,21 +309,28 @@ func runOneOffAlarm(cmd *cobra.Command) error {
 		return err
 	}
 	defer cancel()
-	timeStr := viper.GetString("time")
+	// Read flags directly from cmd to avoid viper binding conflicts between create and one-off commands
+	timeStr, _ := cmd.Flags().GetString("time")
 	if timeStr == "" {
 		return fmt.Errorf("--time is required (HH:MM format)")
 	}
-	if err := validateOneOffAlarmInputs(timeStr, viper.GetInt("vibration-level"), viper.GetInt("thermal-level"), viper.GetString("vibration-pattern")); err != nil {
+	vibrationLevel, _ := cmd.Flags().GetInt("vibration-level")
+	thermalLevel, _ := cmd.Flags().GetInt("thermal-level")
+	vibrationPattern, _ := cmd.Flags().GetString("vibration-pattern")
+	disabled, _ := cmd.Flags().GetBool("disabled")
+	noVibration, _ := cmd.Flags().GetBool("no-vibration")
+	noThermal, _ := cmd.Flags().GetBool("no-thermal")
+	if err := validateOneOffAlarmInputs(timeStr, vibrationLevel, thermalLevel, vibrationPattern); err != nil {
 		return err
 	}
 	alarm := client.OneOffAlarm{
 		Time:             timeStr,
-		Enabled:          !viper.GetBool("disabled"),
-		VibrationEnabled: !viper.GetBool("no-vibration"),
-		VibrationLevel:   viper.GetInt("vibration-level"),
-		VibrationPattern: viper.GetString("vibration-pattern"),
-		ThermalEnabled:   !viper.GetBool("no-thermal"),
-		ThermalLevel:     viper.GetInt("thermal-level"),
+		Enabled:          !disabled,
+		VibrationEnabled: !noVibration,
+		VibrationLevel:   vibrationLevel,
+		VibrationPattern: vibrationPattern,
+		ThermalEnabled:   !noThermal,
+		ThermalLevel:     thermalLevel,
 	}
 	if err := cl.SetOneOffAlarm(ctx, alarm); err != nil {
 		return err
