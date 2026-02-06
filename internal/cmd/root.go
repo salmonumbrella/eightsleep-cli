@@ -72,6 +72,7 @@ func init() {
 	rootCmd.AddCommand(alarmCmd)
 	rootCmd.AddCommand(deviceCmd)
 	rootCmd.AddCommand(metricsCmd)
+	rootCmd.AddCommand(tempModeCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(whoamiCmd)
 	rootCmd.AddCommand(completionCmd)
