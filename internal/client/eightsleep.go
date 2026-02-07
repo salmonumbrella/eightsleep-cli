@@ -597,7 +597,11 @@ func (c *Client) GetSleepDay(ctx context.Context, date string, timezone string) 
 	if len(res.Days) == 0 {
 		return nil, fmt.Errorf("no sleep data for %s", date)
 	}
-	return &res.Days[0], nil
+	day := &res.Days[0]
+	if day.Stages == nil {
+		day.Stages = []Stage{}
+	}
+	return day, nil
 }
 
 // ListTracks returns audio tracks metadata.
@@ -615,6 +619,9 @@ func (c *Client) ListTracks(ctx context.Context) ([]AudioTrack, error) {
 	if err := c.do(ctx, http.MethodGet, path, nil, nil, &res); err != nil {
 		return nil, err
 	}
+	if res.Tracks == nil {
+		return []AudioTrack{}, nil
+	}
 	return res.Tracks, nil
 }
 
@@ -631,6 +638,9 @@ func (c *Client) ReleaseFeatures(ctx context.Context) ([]ReleaseFeature, error) 
 	}
 	if err := c.do(ctx, http.MethodGet, path, nil, nil, &res); err != nil {
 		return nil, err
+	}
+	if res.Features == nil {
+		return []ReleaseFeature{}, nil
 	}
 	return res.Features, nil
 }

@@ -22,7 +22,7 @@ type Alarm struct {
 type Routine struct {
 	ID       string           `json:"id"`
 	Name     string           `json:"name,omitempty"`
-	Days     []int            `json:"days,omitempty"`
+	Days     []int            `json:"days"`
 	Alarms   []RoutineAlarm   `json:"alarms"`
 	Override *RoutineOverride `json:"override,omitempty"`
 }
@@ -103,7 +103,22 @@ func (c *Client) ListRoutines(ctx context.Context) (*RoutinesState, error) {
 	if err := c.doApp(ctx, http.MethodGet, path, nil, nil, &res); err != nil {
 		return nil, err
 	}
-	return &RoutinesState{Routines: res.Settings.Routines, State: res.State}, nil
+	routines := res.Settings.Routines
+	if routines == nil {
+		routines = []Routine{}
+	}
+	for i := range routines {
+		if routines[i].Days == nil {
+			routines[i].Days = []int{}
+		}
+		if routines[i].Alarms == nil {
+			routines[i].Alarms = []RoutineAlarm{}
+		}
+		if routines[i].Override != nil && routines[i].Override.Alarms == nil {
+			routines[i].Override.Alarms = []RoutineAlarm{}
+		}
+	}
+	return &RoutinesState{Routines: routines, State: res.State}, nil
 }
 
 func (c *Client) UpdateRoutine(ctx context.Context, routineID string, routine Routine) error {

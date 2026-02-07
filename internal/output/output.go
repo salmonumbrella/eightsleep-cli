@@ -21,6 +21,10 @@ const (
 // Print renders rows according to format.
 // rows: slice of maps; headers define column order.
 func Print(format Format, headers []string, rows []map[string]any) error {
+	// Ensure rows is never nil so JSON output is [] instead of null.
+	if rows == nil {
+		rows = []map[string]any{}
+	}
 	switch format {
 	case FormatJSON:
 		enc := json.NewEncoder(os.Stdout)
