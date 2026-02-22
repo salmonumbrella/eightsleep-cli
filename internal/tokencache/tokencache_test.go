@@ -1,0 +1,201 @@
+package tokencache
+
+import (
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/99designs/keyring"
+)
+
+func withTestKeyring(t *testing.T) {
+	t.Helper()
+	tmpDir := t.TempDir()
+	orig := openKeyring
+	openKeyring = func() (keyring.Keyring, error) {
+		return keyring.Open(keyring.Config{
+			ServiceName:      serviceName + "-test",
+			AllowedBackends:  []keyring.BackendType{keyring.FileBackend},
+			FileDir:          filepath.Join(tmpDir, "keyring"),
+			FilePasswordFunc: func(_ string) (string, error) { return "test-pass", nil },
+		})
+	}
+	t.Cleanup(func() { openKeyring = orig })
+}
+
+func TestSaveLoadRoundTrip(t *testing.T) {
+	withTestKeyring(t)
+
+	id := Identity{BaseURL: "https://api.example.com", ClientID: "client-1", Email: "User@Example.com"}
+	exp := time.Now().Add(time.Hour)
+
+	if err := Save(id, "token-123", exp, "user-1"); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	got, err := Load(id, "user-1")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got.Token != "token-123" {
+		t.Errorf("token = %q, want token-123", got.Token)
+	}
+	if !got.ExpiresAt.Equal(exp) {
+		t.Errorf("expiresAt = %v, want %v", got.ExpiresAt, exp)
+	}
+	if got.UserID != "user-1" {
+		t.Errorf("userID = %q, want user-1", got.UserID)
+	}
+}
+
+func TestLoadSkipsMismatchedUser(t *testing.T) {
+	withTestKeyring(t)
+	id := Identity{BaseURL: "https://api.example.com", ClientID: "client-1"}
+	if err := Save(id, "token", time.Now().Add(time.Hour), "user-a"); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	if _, err := Load(id, "user-b"); err != keyring.ErrKeyNotFound {
+		t.Fatalf("expected ErrKeyNotFound for mismatched user, got %v", err)
+	}
+}
+
+func TestLoadExpiredRemovesEntry(t *testing.T) {
+	withTestKeyring(t)
+	id := Identity{BaseURL: "https://api.example.com", ClientID: "client-1"}
+	if err := Save(id, "expired", time.Now().Add(-time.Minute), "user-1"); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	if _, err := Load(id, "user-1"); err != keyring.ErrKeyNotFound {
+		t.Fatalf("expected ErrKeyNotFound for expired token, got %v", err)
+	}
+	// second load should still be ErrKeyNotFound (entry removed)
+	if _, err := Load(id, "user-1"); err != keyring.ErrKeyNotFound {
+		t.Fatalf("expected ErrKeyNotFound after removal, got %v", err)
+	}
+}
+
+func TestClearIgnoresMissing(t *testing.T) {
+	withTestKeyring(t)
+	id := Identity{BaseURL: "https://api.example.com", ClientID: "client-1"}
+	if err := Clear(id); err != nil {
+		t.Fatalf("Clear missing: %v", err)
+	}
+}
+
+func TestNamespacingByIdentity(t *testing.T) {
+	withTestKeyring(t)
+	idA := Identity{BaseURL: "https://api.example.com", ClientID: "client-1", Email: "a@example.com"}
+	idB := Identity{BaseURL: "https://api.example.com", ClientID: "client-2", Email: "a@example.com"}
+	idC := Identity{BaseURL: "https://api.example.com", ClientID: "client-1", Email: "b@example.com"}
+	idD := Identity{BaseURL: "https://api.example.com", ClientID: "client-1", Email: ""}
+
+	if err := Save(idA, "token-a", time.Now().Add(time.Hour), "user-a"); err != nil {
+		t.Fatalf("Save A: %v", err)
+	}
+	if err := Save(idB, "token-b", time.Now().Add(time.Hour), "user-b"); err != nil {
+		t.Fatalf("Save B: %v", err)
+	}
+	if err := Save(idC, "token-c", time.Now().Add(time.Hour), "user-c"); err != nil {
+		t.Fatalf("Save C: %v", err)
+	}
+	if err := Save(idD, "token-d", time.Now().Add(time.Hour), "user-d"); err != nil {
+		t.Fatalf("Save D: %v", err)
+	}
+
+	if got, _ := Load(idA, "user-a"); got.Token != "token-a" {
+		t.Errorf("Load A token = %q, want token-a", got.Token)
+	}
+	if _, err := Load(idA, "user-b"); err != keyring.ErrKeyNotFound {
+		t.Errorf("Load A with user-b should miss, got %v", err)
+	}
+	if got, _ := Load(idB, "user-b"); got.Token != "token-b" {
+		t.Errorf("Load B token = %q, want token-b", got.Token)
+	}
+	if got, _ := Load(idC, "user-c"); got.Token != "token-c" {
+		t.Errorf("Load C token = %q, want token-c", got.Token)
+	}
+	if got, _ := Load(idD, ""); got.Token != "token-d" {
+		t.Errorf("Load D token = %q, want token-d", got.Token)
+	}
+}
+
+func TestClearOnlyRemovesMatchingIdentity(t *testing.T) {
+	withTestKeyring(t)
+	idA := Identity{BaseURL: "https://api.example.com", ClientID: "client-1", Email: "a@example.com"}
+	idB := Identity{BaseURL: "https://api.example.com", ClientID: "client-2", Email: "a@example.com"}
+
+	if err := Save(idA, "token-a", time.Now().Add(time.Hour), "user-a"); err != nil {
+		t.Fatalf("Save A: %v", err)
+	}
+	if err := Save(idB, "token-b", time.Now().Add(time.Hour), "user-b"); err != nil {
+		t.Fatalf("Save B: %v", err)
+	}
+
+	if err := Clear(idA); err != nil {
+		t.Fatalf("Clear A: %v", err)
+	}
+	if _, err := Load(idA, "user-a"); err != keyring.ErrKeyNotFound {
+		t.Fatalf("expected A cleared, got %v", err)
+	}
+	if got, err := Load(idB, "user-b"); err != nil || got.Token != "token-b" {
+		t.Fatalf("B should remain, got %v err %v", got, err)
+	}
+}
+
+func TestCacheKeyNormalization(t *testing.T) {
+	k1 := cacheKey(Identity{BaseURL: "https://API.example.com/", ClientID: "id", Email: "User@Example.com "})
+	k2 := cacheKey(Identity{BaseURL: "https://api.example.com", ClientID: "id", Email: "user@example.com"})
+	if k1 != k2 {
+		t.Fatalf("cacheKey should normalize; got %q vs %q", k1, k2)
+	}
+}
+
+func TestCacheKeyHandlesEmptyEmail(t *testing.T) {
+	k1 := cacheKey(Identity{BaseURL: "https://api.example.com", ClientID: "id", Email: ""})
+	k2 := cacheKey(Identity{BaseURL: "https://api.example.com/", ClientID: "id", Email: " "})
+	if k1 != k2 {
+		t.Fatalf("cacheKey should normalize empty emails; got %q vs %q", k1, k2)
+	}
+}
+
+func TestLoadWithoutEmailFindsSingleMatch(t *testing.T) {
+	withTestKeyring(t)
+	id := Identity{BaseURL: "https://api.example.com", ClientID: "client-1", Email: "user@example.com"}
+	if err := Save(id, "tok", time.Now().Add(time.Hour), "user-1"); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	// email omitted -> should still find the single token
+	idNoEmail := Identity{BaseURL: id.BaseURL, ClientID: id.ClientID}
+	cached, err := Load(idNoEmail, "user-1")
+	if err != nil {
+		t.Fatalf("Load without email: %v", err)
+	}
+	if cached.Token != "tok" {
+		t.Fatalf("token mismatch: %q", cached.Token)
+	}
+}
+
+func TestLoadWithoutEmailMultipleMatchesFails(t *testing.T) {
+	withTestKeyring(t)
+	common := Identity{BaseURL: "https://api.example.com", ClientID: "client-1"}
+	if err := Save(Identity{BaseURL: common.BaseURL, ClientID: common.ClientID, Email: "a@example.com"}, "ta", time.Now().Add(time.Hour), "ua"); err != nil {
+		t.Fatalf("save a: %v", err)
+	}
+	if err := Save(Identity{BaseURL: common.BaseURL, ClientID: common.ClientID, Email: "b@example.com"}, "tb", time.Now().Add(time.Hour), "ub"); err != nil {
+		t.Fatalf("save b: %v", err)
+	}
+	if _, err := Load(common, ""); err != keyring.ErrKeyNotFound {
+		t.Fatalf("expected not found when multiple matches, got %v", err)
+	}
+}
+
+func TestFilePasswordFunc(t *testing.T) {
+	pw, err := filePassword("ignored")
+	if err != nil {
+		t.Fatalf("filePassword: %v", err)
+	}
+	if pw != serviceName+"-fallback" {
+		t.Fatalf("password = %q, want %q", pw, serviceName+"-fallback")
+	}
+}
