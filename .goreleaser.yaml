@@ -2,6 +2,9 @@ version: 2
 
 project_name: eightsleep-cli
 
+release:
+  mode: replace
+
 builds:
   - id: darwin
     main: ./cmd/eightsleep
